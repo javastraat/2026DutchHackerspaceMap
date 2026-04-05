@@ -4,8 +4,8 @@
 #define WIFI_SLOT_COUNT  6
 
 #define WIFI_S0_LABEL    "TechInc"
-#define WIFI_S0_SSID     "TechInc"
-#define WIFI_S0_PASS     "itoldyoualready"
+#define WIFI_S0_SSID     "your_ssid_here"
+#define WIFI_S0_PASS     "your_password_here"
 
 #define WIFI_S1_LABEL    "Home"
 #define WIFI_S1_SSID     ""
@@ -29,9 +29,9 @@
 
 // --- Fallback AP & OTA ---
 #define FALLBACK_AP_SSID   "HackerspaceMap-OTA"
-#define FALLBACK_AP_PASS   "itoldyoualready"
+#define FALLBACK_AP_PASS   "your_password_here"
 #define OTA_HOSTNAME       "hackerspace-status"
-#define OTA_PASS           "itoldyoualready"
+#define OTA_PASS           "your_password_here"
 #define WIFI_CONNECT_TIMEOUT_MS  15000
 
 // --- LED hardware ---
@@ -54,7 +54,7 @@
 #define SPARKLE_BRIGHTNESS   2    // 0 (off) to 10 (max) — white flash intensity
 
 // --- MQTT defaults ---
-#define MQTT_BROKER_DEFAULT   "192.168.2.26"
+#define MQTT_BROKER_DEFAULT   "mqtt_broker_address_here"
 #define MQTT_PORT_DEFAULT     1883
 #define MQTT_TOPIC_DEFAULT    "hackerspace/status"
 #define MQTT_HA_ENABLE_DEFAULT true
