@@ -29,6 +29,7 @@ void publishHADiscovery();
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <time.h>
 #include <Preferences.h>
 #include <ArduinoOTA.h>
 #include <HTTPClient.h>
@@ -65,6 +66,7 @@ uint32_t mqttPublishInterval = 60000; // 1 min default, can be set from web
 static bool wifiIsStation = false;          // false when in SoftAP fallback mode
 static uint32_t lastWifiReconnectAttempt = 0;
 static const uint32_t WIFI_RECONNECT_INTERVAL_MS = 30000;
+int activeWifiSlot = -1;                    // -1 = SoftAP or not connected
 
 void saveMqttSettings() {
   Preferences prefs;
@@ -848,6 +850,7 @@ void connectWifiOrStartSoftAp() {
   bool connected = false;
   for (int i = 0; i < WIFI_SLOT_COUNT && !connected; i++) {
     connected = tryConnectSlot(i);
+    if (connected) activeWifiSlot = i;
   }
   Serial.println();
 
@@ -857,6 +860,9 @@ void connectWifiOrStartSoftAp() {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    // Netherlands: CET (UTC+1) with CEST (UTC+2) DST
+    configTzTime("CET-1CEST,M3.5.0,M10.5.0/3", "pool.ntp.org", "time.google.com");
+    Serial.println("NTP sync started");
     fillAll(0, 24, 0);
     showLedsLocked();
   } else {
@@ -986,6 +992,7 @@ void loop() {
       WiFi.disconnect(false);
       for (int i = 0; i < WIFI_SLOT_COUNT; i++) {
         if (tryConnectSlot(i)) {
+          activeWifiSlot = i;
           Serial.printf("[WiFi] Reconnected via slot %d (%s)\n", i, wifiLabel[i].c_str());
           break;
         }

@@ -1,10 +1,12 @@
 #include "webserver.h"
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <time.h>
 #include "../config.h"
 
 extern uint8_t spaceStates[];
 extern uint32_t lastPollFinished;
+extern int activeWifiSlot;
 
 struct SpaceInfo { int led; const char *name; };
 static const SpaceInfo spaceInfo[] = {
@@ -286,6 +288,9 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
       <div class="row"><span class="lbl">WiFi RSSI</span><span class="val" id="hw-rssi">…</span></div>
       <div class="row"><span class="lbl">LEDs</span><span class="val" id="hw-leds">…</span></div>
       <div class="row"><span class="lbl">Uptime</span><span class="val" id="hw-uptime">…</span></div>
+      <div class="row"><span class="lbl">WiFi slot</span><span class="val" id="hw-wslot">…</span></div>
+      <div class="row"><span class="lbl">Time</span><span class="val" id="hw-time">…</span></div>
+      <div class="row"><span class="lbl">Firmware</span><span class="val" id="hw-fw">…</span></div>
     </div>
 
   </div>
@@ -329,6 +334,9 @@ function pollHw() {
     document.getElementById('hw-rssi').textContent  = d.rssi+' dBm';
     document.getElementById('hw-leds').textContent  = d.map_leds+' map + '+d.backlight_leds+' backlight';
     document.getElementById('hw-uptime').textContent = fmtUptime(d.uptime_s);
+    document.getElementById('hw-wslot').textContent  = d.wifi_slot >= 0 ? 'Slot '+d.wifi_slot : 'SoftAP';
+    document.getElementById('hw-time').textContent   = d.time_str || '—';
+    document.getElementById('hw-fw').textContent     = d.fw_build;
   }).catch(()=>{});
 }
 
@@ -427,7 +435,8 @@ function pollSpaces() {
     if (d.polled_ago_s !== null) {
       const ago = d.polled_ago_s < 60 ? d.polled_ago_s+'s ago'
                 : Math.floor(d.polled_ago_s/60)+'m ago';
-      document.getElementById('poll-time').textContent = 'Last polled: '+ago;
+      const timeStr = d.last_poll_str ? d.last_poll_str+' ('+ago+')' : ago;
+      document.getElementById('poll-time').textContent = 'Last polled: '+timeStr;
     }
   }).catch(()=>{});
 }
@@ -492,7 +501,13 @@ void handleManifest() {
 }
 
 void handleApiHw() {
-  char buf[512];
+  char timeBuf[10] = "—";
+  time_t now = time(nullptr);
+  if (now > 1000000000UL) { // NTP synced (year > 2001)
+    struct tm *tm_info = localtime(&now);
+    strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", tm_info);
+  }
+  char buf[768];
   snprintf(buf, sizeof(buf),
     "{"
       "\"chip\":\"ESP32-C3\","
@@ -504,7 +519,10 @@ void handleApiHw() {
       "\"rssi\":%d,"
       "\"map_leds\":%d,"
       "\"backlight_leds\":%d,"
-      "\"uptime_s\":%u"
+      "\"uptime_s\":%u,"
+      "\"wifi_slot\":%d,"
+      "\"time_str\":\"%s\","
+      "\"fw_build\":\"%s %s\""
     "}",
     getCpuFrequencyMhz(),
     (unsigned)(ESP.getFlashChipSize() / 1024),
@@ -514,7 +532,10 @@ void handleApiHw() {
     WiFi.RSSI(),
     MAP_LED_COUNT,
     BACKLIGHT_COUNT,
-    (uint32_t)(millis() / 1000)
+    (uint32_t)(millis() / 1000),
+    activeWifiSlot,
+    timeBuf,
+    __DATE__, __TIME__
   );
   sendJson(buf);
 }
@@ -533,6 +554,17 @@ void handleApiSpaces() {
   }
   json += "],\"polled_ago_s\":";
   json += lastPollFinished > 0 ? String((millis() - lastPollFinished) / 1000) : "null";
+  time_t now = time(nullptr);
+  if (lastPollFinished > 0 && now > 1000000000UL) {
+    uint32_t ago_s = (millis() - lastPollFinished) / 1000;
+    time_t poll_ts = now - (time_t)ago_s;
+    struct tm *tm_info = localtime(&poll_ts);
+    char tbuf[10];
+    strftime(tbuf, sizeof(tbuf), "%H:%M:%S", tm_info);
+    json += ",\"last_poll_str\":\"";
+    json += tbuf;
+    json += "\"";
+  }
   json += "}";
   sendJson(json);
 }
