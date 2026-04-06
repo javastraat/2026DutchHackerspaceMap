@@ -1144,7 +1144,6 @@ void startupTest() {
 }
 
 void setup() {
-  mqttClient.setServer(mqttBroker, mqttPort);
   mqttClient.setCallback(mqttCallback);
   mqttClient.setBufferSize(1024);
   Serial.begin(115200);
@@ -1162,7 +1161,8 @@ void setup() {
   Serial.println(LED_COUNT);
 
   ledMutex = xSemaphoreCreateMutex();
-  loadSettings();
+  loadSettings();  // loads saved MQTT broker/port before setServer()
+  mqttClient.setServer(mqttBroker, mqttPort);
   initLeds();
   initOriginalAnim();
   clearAll();

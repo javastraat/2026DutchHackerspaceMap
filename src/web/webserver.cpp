@@ -610,7 +610,7 @@ void handleApiSpaces() {
     s["state"]    = spaceStates[i] == 1 ? "open"
                   : spaceStates[i] == 0 ? "closed"
                   : "unknown";
-    s["fetching"]   = (bool)spacePolling[i];
+    s["fetching"]   = (bool)spacePolling[hackerspaces[i].ledNumber - 1];
     s["fail_count"] = spaceFailCount[i];
     time_t lo = lastSeenOpen[i];
     if (lo > 0 && ntpSynced) {
