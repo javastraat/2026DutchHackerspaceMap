@@ -269,7 +269,7 @@ static void makeSlug(const char *name, char *slug, size_t sz) {
 void publishHADiscovery() {
   if (!mqttClient.connected() || !mqttHAEnable) return;
   char topic[128];
-  char payload[768];
+  char payload[1024];
   // Availability fragment added to every entity
   char availObj[80];
   snprintf(availObj, sizeof(availObj),
@@ -490,8 +490,8 @@ uint8_t baseR[MAP_LED_COUNT] = {0};
 uint8_t baseG[MAP_LED_COUNT] = {0};
 uint8_t baseB[MAP_LED_COUNT] = {0};
 float sparkle[MAP_LED_COUNT] = {0};
-bool spacePolling[MAP_LED_COUNT] = {false};
-uint8_t spaceFailCount[HACKERSPACE_COUNT] = {0};
+volatile bool spacePolling[MAP_LED_COUNT] = {false};
+volatile uint8_t spaceFailCount[HACKERSPACE_COUNT] = {0};
 static uint32_t pollCycleCount = 0;
 static const uint8_t FAIL_SKIP_THRESHOLD = 3;
 static const uint8_t FAIL_RETRY_EVERY   = 5;

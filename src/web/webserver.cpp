@@ -11,8 +11,8 @@ extern uint32_t lastPollFinished;
 extern int activeWifiSlot;
 extern volatile int pollProgress;
 extern time_t lastSeenOpen[];
-extern bool spacePolling[];
-extern uint8_t spaceFailCount[];
+extern volatile bool spacePolling[];
+extern volatile uint8_t spaceFailCount[];
 
 extern volatile bool forcePoll;
 extern volatile bool forceRandomPoll;
