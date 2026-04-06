@@ -52,6 +52,8 @@ char mqttBroker[64] = MQTT_BROKER_DEFAULT;
 uint16_t mqttPort = MQTT_PORT_DEFAULT;
 char mqttTopic[64] = MQTT_TOPIC_DEFAULT;
 bool mqttHAEnable = MQTT_HA_ENABLE_DEFAULT;
+char mqttUser[64] = MQTT_USER_DEFAULT;
+char mqttPass[64] = MQTT_PASS_DEFAULT;
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
@@ -68,6 +70,8 @@ void saveMqttSettings() {
   prefs.putUShort("mqttPort", mqttPort);
   prefs.putString("mqttTopic", mqttTopic);
   prefs.putBool("mqttHAEnable", mqttHAEnable);
+  prefs.putString("mqttUser", mqttUser);
+  prefs.putString("mqttPass", mqttPass);
   prefs.putBool("initialized", true); // Ensure flag is set
   prefs.end();
 }
@@ -84,11 +88,17 @@ void loadMqttSettings() {
     if (t.length() == 0) t = MQTT_TOPIC_DEFAULT;
     t.toCharArray(mqttTopic, sizeof(mqttTopic));
     mqttHAEnable = prefs.getBool("mqttHAEnable", MQTT_HA_ENABLE_DEFAULT);
+    String u = prefs.getString("mqttUser", MQTT_USER_DEFAULT);
+    u.toCharArray(mqttUser, sizeof(mqttUser));
+    String p = prefs.getString("mqttPass", MQTT_PASS_DEFAULT);
+    p.toCharArray(mqttPass, sizeof(mqttPass));
   } else {
     strncpy(mqttBroker, MQTT_BROKER_DEFAULT, sizeof(mqttBroker));
     mqttPort = MQTT_PORT_DEFAULT;
     strncpy(mqttTopic, MQTT_TOPIC_DEFAULT, sizeof(mqttTopic));
     mqttHAEnable = MQTT_HA_ENABLE_DEFAULT;
+    strncpy(mqttUser, MQTT_USER_DEFAULT, sizeof(mqttUser));
+    strncpy(mqttPass, MQTT_PASS_DEFAULT, sizeof(mqttPass));
   }
   prefs.end();
 }
@@ -145,7 +155,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 void mqttReconnect() {
   while (!mqttClient.connected()) {
-    if (mqttClient.connect("HackerspaceMap")) {
+    const char *user = strlen(mqttUser) > 0 ? mqttUser : nullptr;
+    const char *pass = strlen(mqttPass) > 0 ? mqttPass : nullptr;
+    if (mqttClient.connect("HackerspaceMap", user, pass)) {
       char sub[96];
       snprintf(sub, sizeof(sub), "%s/set/#", mqttTopic);
       mqttClient.subscribe(sub);
@@ -198,7 +210,7 @@ void publishHADiscovery() {
       "\"identifiers\":[\"HSMap_%s\"],"
       "\"connections\":[[\"mac\",\"%s\"]],"
       "\"name\":\"HackerspaceMap\","
-      "\"manufacturer\":\"Theo Borm\","
+      "\"manufacturer\":\"Theo Borm (c) 2026\","
       "\"model\":\"ESP32-C3\","
       "\"model_id\":\"HSMap-C3\","
       "\"serial_number\":\"%s\","
@@ -236,7 +248,7 @@ void publishHADiscovery() {
       "{\"name\":\"HSMap %s\",\"state_topic\":\"%s\","
       "\"value_template\":\"{{ 'ON' if value_json.space_states[%d] == 1 else 'OFF' }}\","
       "\"payload_on\":\"ON\",\"payload_off\":\"OFF\","
-      "\"device_class\":\"opening\",\"unique_id\":\"hsmap_%s\",%s}",
+      "\"device_class\":\"door\",\"unique_id\":\"hsmap_%s\",%s}",
       spaces[i].name, mqttTopic, i, spaces[i].slug, deviceObj);
     mqttClient.publish(topic, payload, true);
   }

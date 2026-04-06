@@ -32,6 +32,8 @@ extern char mqttBroker[64];
 extern uint16_t mqttPort;
 extern char mqttTopic[64];
 extern bool mqttHAEnable;
+extern char mqttUser[64];
+extern char mqttPass[64];
 extern PubSubClient mqttClient;
 void saveMqttSettings();
 void loadMqttSettings();
@@ -52,6 +54,14 @@ void handleApiMqtt() {
     if (webServer.hasArg("ha_enable")) {
       mqttHAEnable = (webServer.arg("ha_enable") == "true" || webServer.arg("ha_enable") == "1");
     }
+    if (webServer.hasArg("user")) {
+      strncpy(mqttUser, webServer.arg("user").c_str(), sizeof(mqttUser)-1);
+      mqttUser[sizeof(mqttUser)-1] = 0;
+    }
+    if (webServer.hasArg("pass")) {
+      strncpy(mqttPass, webServer.arg("pass").c_str(), sizeof(mqttPass)-1);
+      mqttPass[sizeof(mqttPass)-1] = 0;
+    }
     saveMqttSettings();
     // Update MQTT client with new settings immediately
     extern PubSubClient mqttClient;
@@ -64,11 +74,12 @@ void handleApiMqtt() {
   }
   // GET: always reload settings from NVS to ensure up-to-date values
   loadMqttSettings();
-  Serial.printf("[API] MQTT settings: broker='%s' port=%u topic='%s' ha_enable=%d\n", mqttBroker, mqttPort, mqttTopic, mqttHAEnable);
-  char buf[256];
+  Serial.printf("[API] MQTT settings: broker='%s' port=%u topic='%s' ha_enable=%d user='%s'\n", mqttBroker, mqttPort, mqttTopic, mqttHAEnable, mqttUser);
+  char buf[320];
   snprintf(buf, sizeof(buf),
-    "{\"broker\":\"%s\",\"port\":%u,\"topic\":\"%s\",\"ha_enable\":%s}",
-    mqttBroker, mqttPort, mqttTopic, mqttHAEnable ? "true" : "false");
+    "{\"broker\":\"%s\",\"port\":%u,\"topic\":\"%s\",\"ha_enable\":%s,\"user\":\"%s\",\"has_pass\":%s}",
+    mqttBroker, mqttPort, mqttTopic, mqttHAEnable ? "true" : "false",
+    mqttUser, strlen(mqttPass) > 0 ? "true" : "false");
   webServer.sendHeader("Access-Control-Allow-Origin", "*");
   webServer.sendHeader("Cache-Control", "no-store");
   webServer.send(200, "application/json", buf);
@@ -177,6 +188,13 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
       <div class="form-row"><label>Broker</label><input type="text" id="mqtt-broker" maxlength="63"></div>
       <div class="form-row"><label>Port</label><input type="number" id="mqtt-port" min="1" max="65535"></div>
       <div class="form-row"><label>Topic</label><input type="text" id="mqtt-topic" maxlength="63"></div>
+      <div class="form-row"><label>Username</label><input type="text" id="mqtt-user" maxlength="63" autocomplete="off"></div>
+      <div class="form-row"><label>Password</label>
+        <div class="pass-wrap">
+          <input type="password" id="mqtt-pass" maxlength="63" autocomplete="new-password" placeholder="leave blank to keep current">
+          <button class="eye-btn" onclick="toggleMqttPass()" title="Show/hide">👁</button>
+        </div>
+      </div>
       <div class="form-row"><label><input type="checkbox" id="mqtt-ha-enable"> Publish to Home Assistant</label></div>
       <button class="btn-primary" onclick="saveMqtt()">Update MQTT</button>
     </div>
@@ -305,6 +323,8 @@ function loadMqtt() {
     document.getElementById('mqtt-broker').value = d.broker;
     document.getElementById('mqtt-port').value = d.port;
     document.getElementById('mqtt-topic').value = d.topic;
+    document.getElementById('mqtt-user').value = d.user || '';
+    document.getElementById('mqtt-pass').placeholder = d.has_pass ? 'leave blank to keep current' : 'no password set';
     document.getElementById('mqtt-ha-enable').checked = d.ha_enable === true || d.ha_enable === 'true';
   }).catch(()=>{});
 }
@@ -312,10 +332,17 @@ function saveMqtt() {
   const broker = document.getElementById('mqtt-broker').value;
   const port = document.getElementById('mqtt-port').value;
   const topic = document.getElementById('mqtt-topic').value;
+  const user = document.getElementById('mqtt-user').value;
+  const pass = document.getElementById('mqtt-pass').value;
   const ha_enable = document.getElementById('mqtt-ha-enable').checked ? 'true' : 'false';
-  const body = `broker=${encodeURIComponent(broker)}&port=${encodeURIComponent(port)}&topic=${encodeURIComponent(topic)}&ha_enable=${ha_enable}`;
+  let body = `broker=${encodeURIComponent(broker)}&port=${encodeURIComponent(port)}&topic=${encodeURIComponent(topic)}&ha_enable=${ha_enable}&user=${encodeURIComponent(user)}`;
+  if (pass !== '') body += `&pass=${encodeURIComponent(pass)}`;
   fetch('/api/mqtt', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body})
-    .then(()=>{ alert('MQTT settings updated!'); loadMqtt(); }).catch(()=>{});
+    .then(()=>{ alert('MQTT settings updated!'); document.getElementById('mqtt-pass').value=''; loadMqtt(); }).catch(()=>{});
+}
+function toggleMqttPass() {
+  const p = document.getElementById('mqtt-pass');
+  p.type = p.type === 'password' ? 'text' : 'password';
 }
 loadMqtt();
 document.querySelectorAll('#brightness-presets .preset-btn').forEach(b=>{

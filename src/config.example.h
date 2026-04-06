@@ -58,3 +58,5 @@
 #define MQTT_PORT_DEFAULT     1883
 #define MQTT_TOPIC_DEFAULT    "hackerspace/status"
 #define MQTT_HA_ENABLE_DEFAULT true
+#define MQTT_USER_DEFAULT     ""
+#define MQTT_PASS_DEFAULT     ""
