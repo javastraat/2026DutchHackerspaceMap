@@ -793,6 +793,10 @@ void updateAnimation() {
         min(255, (int)(baseG[i] + sparkle[i] * boost)),
         min(255, (int)(baseB[i] + sparkle[i] * boost)));
     }
+    // Backlight: slow white breath
+    float breath = (sin(millis() / 3000.0f * 2.0f * PI) + 1.0f) / 2.0f;
+    uint8_t bl = (uint8_t)(6 + 10 * breath);
+    setBacklightColor(bl, bl, bl);
   }
 
   if (animMode == ANIM_MODE_BREATHE) {
