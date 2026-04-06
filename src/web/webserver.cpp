@@ -562,7 +562,7 @@ void handleApiHw() {
   time_t now = time(nullptr);
   if (now > 1000000000UL) { // NTP synced (year > 2001)
     struct tm *tm_info = localtime(&now);
-    strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", tm_info);
+    if (tm_info) strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", tm_info);
   }
   char buf[768];
   snprintf(buf, sizeof(buf),
