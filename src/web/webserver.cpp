@@ -9,6 +9,7 @@ extern uint32_t lastPollFinished;
 extern int activeWifiSlot;
 extern volatile int pollProgress;
 extern time_t lastSeenOpen[];
+extern bool spacePolling[];
 
 struct SpaceInfo { int led; const char *name; };
 static const SpaceInfo spaceInfo[] = {
@@ -184,6 +185,7 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
 .dot-open{background:#28a745}
 .dot-closed{background:#dc3545}
 .dot-unknown{background:#007bff}
+.dot-fetching{background:#ff8c00}
 .space-name{flex:1}
 .space-badge{font-size:.75em;padding:2px 7px;border-radius:10px;font-weight:bold}
 .badge-open{background:#28a74522;color:#28a745}
@@ -438,13 +440,15 @@ function pollSpaces() {
     const polling = d.poll_progress !== null && d.poll_progress !== undefined;
     const list = document.getElementById('spaces-list');
     list.innerHTML = d.spaces.map(s=>{
-      const cls = s.state==='open' ? 'open' : s.state==='closed' ? 'closed' : 'unknown';
-      const lastOpen = s.last_open && s.state!=='open'
+      const cls = s.fetching ? 'fetching' : s.state==='open' ? 'open' : s.state==='closed' ? 'closed' : 'unknown';
+      const badge = s.fetching ? `<span class="space-badge" style="background:#ff8c0022;color:#ff8c00">fetching…</span>`
+                               : `<span class="space-badge badge-${cls}">${s.state}</span>`;
+      const lastOpen = s.last_open && s.state!=='open' && !s.fetching
         ? `<span class="last-open">last open ${s.last_open}</span>` : '';
       return `<div class="space-row">
         <div class="space-dot dot-${cls}"></div>
         <span class="space-name">${s.name}${lastOpen}</span>
-        <span class="space-badge badge-${cls}">${s.state}</span>
+        ${badge}
       </div>`;
     }).join('');
     const open = d.spaces.filter(s=>s.state==='open').length;
@@ -582,7 +586,8 @@ void handleApiSpaces() {
     json += "{\"led\":";  json += spaceInfo[i].led;
     json += ",\"name\":\""; json += spaceInfo[i].name;
     json += "\",\"state\":\""; json += state;
-    json += "\",\"last_open\":";
+    json += "\",\"fetching\":"; json += spacePolling[i] ? "true" : "false";
+    json += ",\"last_open\":";
     time_t lo = lastSeenOpen[i];
     if (lo > 0 && now > 1000000000UL) {
       char buf[24];
