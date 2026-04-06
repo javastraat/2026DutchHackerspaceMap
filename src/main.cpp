@@ -654,8 +654,6 @@ uint8_t fetchSpaceState(const char *url) {
 void pollAllSpaces() {
   Serial.println("Polling all hackerspaces...");
   for (int i = 0; i < HACKERSPACE_COUNT; i++) {
-    if (otaReady) ArduinoOTA.handle();
-    webServer.handleClient();
     Serial.printf("  [%2d] %s\n", hackerspaces[i].ledNumber, hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = true;
     setSpaceColor(hackerspaces[i].ledNumber, 255, 80, 0);
@@ -665,6 +663,21 @@ void pollAllSpaces() {
   }
   lastPollFinished = millis();
   Serial.println("Poll done.");
+}
+
+static TaskHandle_t pollTaskHandle = nullptr;
+
+void pollTaskFunc(void *) {
+  for (;;) {
+    if (wifiIsStation && WiFi.status() == WL_CONNECTED) {
+      if (forcePoll || (millis() - lastPollTime) >= pollIntervalMs) {
+        forcePoll = false;
+        lastPollTime = millis();
+        pollAllSpaces();
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+  }
 }
 
 void initOriginalAnim() {
@@ -934,12 +947,12 @@ void setup() {
   showLedsLocked();
 
   xTaskCreate(animTaskFunc, "anim", 4096, nullptr, 2, &animTaskHandle);
+  xTaskCreate(pollTaskFunc, "poll", 8192, nullptr, 1, &pollTaskHandle);
 
   printSerialHelp();
   Serial.println("Command mode ready. Try: ALL,OPEN");
 
-  pollAllSpaces();
-  lastPollTime = millis();
+  lastPollTime = 0; // triggers poll task to run immediately on first tick
 
   loadMqttSettings();
   setupWebServer();
@@ -994,12 +1007,6 @@ void loop() {
   if ((serialLine.length() > 0) && ((millis() - lastSerialByteTime) > SERIAL_COMMAND_TIMEOUT_MS)) {
     handleSerialCommand(serialLine);
     serialLine = "";
-  }
-
-  if (otaReady && (forcePoll || ((millis() - lastPollTime) >= pollIntervalMs))) {
-    forcePoll = false;
-    lastPollTime = millis();
-    pollAllSpaces();
   }
 
   webServer.handleClient();
