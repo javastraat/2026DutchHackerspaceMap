@@ -763,6 +763,7 @@ void setupOta() {
   ArduinoOTA.onStart([]() {
     Serial.println("OTA update starting");
     if (animTaskHandle) vTaskSuspend(animTaskHandle);
+    if (pollTaskHandle)  vTaskSuspend(pollTaskHandle);
     fillAll(0, 0, 24);
     showLeds();
   });
@@ -770,6 +771,7 @@ void setupOta() {
     Serial.println("\nOTA update finished");
     fillAll(0, 24, 0);
     showLeds();
+    // tasks resume automatically on reboot after OTA
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     Serial.printf("OTA progress: %u%%\r", (progress * 100U) / total);
@@ -779,6 +781,7 @@ void setupOta() {
     fillAll(24, 0, 0);
     showLeds();
     if (animTaskHandle) vTaskResume(animTaskHandle);
+    if (pollTaskHandle)  vTaskResume(pollTaskHandle);
   });
   ArduinoOTA.begin();
   otaReady = true;
