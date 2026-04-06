@@ -36,6 +36,8 @@ void publishHADiscovery();
 #include <cstdio>
 
 #include "driver/spi_master.h"
+#include "esp_task_wdt.h"
+#include "esp_idf_version.h"
 #include "config.h"
 #include "web/webserver.h"
 
@@ -833,6 +835,7 @@ bool tryConnectSlot(int slot) {
     clearAll();
     setPixel(dot, 10, 10, 28);
     showLedsLocked();
+    esp_task_wdt_reset();
     delay(150);
   }
   return WiFi.status() == WL_CONNECTED;
@@ -956,9 +959,23 @@ void setup() {
 
   loadMqttSettings();
   setupWebServer();
+
+  // Watchdog: 30s timeout, panic-reset on trigger. Register the loop task.
+  // ESP-IDF 5.x changed the API; guard for both versions.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  {
+    esp_task_wdt_config_t wdt_cfg = { .timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = true };
+    esp_task_wdt_reconfigure(&wdt_cfg);
+  }
+#else
+  esp_task_wdt_init(30, true);
+#endif
+  esp_task_wdt_add(NULL);
+  Serial.println("Watchdog enabled (30s)");
 }
 
 void loop() {
+  esp_task_wdt_reset();
   if (wifiIsStation && WiFi.status() != WL_CONNECTED) {
     uint32_t now = millis();
     if (now - lastWifiReconnectAttempt >= WIFI_RECONNECT_INTERVAL_MS) {
