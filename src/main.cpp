@@ -60,6 +60,10 @@ PubSubClient mqttClient(espClient);
 uint32_t lastMqttPublish = 0;
 uint32_t mqttPublishInterval = 60000; // 1 min default, can be set from web
 
+static bool wifiIsStation = false;          // false when in SoftAP fallback mode
+static uint32_t lastWifiReconnectAttempt = 0;
+static const uint32_t WIFI_RECONNECT_INTERVAL_MS = 30000;
+
 void saveMqttSettings() {
   Preferences prefs;
   prefs.begin("hsmap", false);
@@ -829,6 +833,8 @@ void connectWifiOrStartSoftAp() {
   }
   Serial.println();
 
+  wifiIsStation = connected;
+
   if (connected) {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
@@ -940,6 +946,25 @@ void setup() {
 }
 
 void loop() {
+  if (wifiIsStation && WiFi.status() != WL_CONNECTED) {
+    uint32_t now = millis();
+    if (now - lastWifiReconnectAttempt >= WIFI_RECONNECT_INTERVAL_MS) {
+      lastWifiReconnectAttempt = now;
+      Serial.println("[WiFi] Connection lost, reconnecting...");
+      WiFi.disconnect(false);
+      for (int i = 0; i < WIFI_SLOT_COUNT; i++) {
+        if (tryConnectSlot(i)) {
+          Serial.printf("[WiFi] Reconnected via slot %d (%s)\n", i, wifiLabel[i].c_str());
+          break;
+        }
+      }
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[WiFi] Reconnect failed, will retry in 30s");
+      }
+    }
+    return; // skip MQTT/poll/web until connected
+  }
+
   if (!mqttClient.connected() && mqttHAEnable) {
     mqttReconnect();
   }
