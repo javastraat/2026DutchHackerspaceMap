@@ -172,18 +172,29 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   lastMqttPublish = millis();
 }
 
+static uint32_t lastMqttReconnectAttempt = 0;
+static const uint32_t MQTT_RECONNECT_INTERVAL_MS = 10000;
+
 void mqttReconnect() {
-  while (!mqttClient.connected()) {
-    const char *user = strlen(mqttUser) > 0 ? mqttUser : nullptr;
-    const char *pass = strlen(mqttPass) > 0 ? mqttPass : nullptr;
-    if (mqttClient.connect("HackerspaceMap", user, pass)) {
-      char sub[96];
-      snprintf(sub, sizeof(sub), "%s/set/#", mqttTopic);
-      mqttClient.subscribe(sub);
-      publishHADiscovery();
-    } else {
-      delay(2000);
-    }
+  uint32_t now = millis();
+  if (now - lastMqttReconnectAttempt < MQTT_RECONNECT_INTERVAL_MS) return;
+  lastMqttReconnectAttempt = now;
+
+  Serial.println("[MQTT] Connecting...");
+  const char *user = strlen(mqttUser) > 0 ? mqttUser : nullptr;
+  const char *pass = strlen(mqttPass) > 0 ? mqttPass : nullptr;
+  char availTopic[96];
+  snprintf(availTopic, sizeof(availTopic), "%s/availability", mqttTopic);
+  // LWT: broker publishes "offline" automatically if device drops
+  if (mqttClient.connect("HackerspaceMap", user, pass, availTopic, 1, true, "offline")) {
+    Serial.println("[MQTT] Connected");
+    mqttClient.publish(availTopic, "online", true);
+    char sub[96];
+    snprintf(sub, sizeof(sub), "%s/set/#", mqttTopic);
+    mqttClient.subscribe(sub);
+    publishHADiscovery();
+  } else {
+    Serial.printf("[MQTT] Failed (rc=%d), retry in 10s\n", mqttClient.state());
   }
 }
 
@@ -195,6 +206,9 @@ void mqttReconnect() {
 
 void publishMqttStatus() {
   if (!mqttClient.connected() || !mqttHAEnable) return;
+  char availTopic[96];
+  snprintf(availTopic, sizeof(availTopic), "%s/availability", mqttTopic);
+  mqttClient.publish(availTopic, "online", true);
   JsonDocument doc;
   // Add all space states
   JsonArray arr = doc["space_states"].to<JsonArray>();
@@ -221,6 +235,10 @@ void publishHADiscovery() {
   if (!mqttClient.connected() || !mqttHAEnable) return;
   char topic[128];
   char payload[768];
+  // Availability fragment added to every entity
+  char availObj[80];
+  snprintf(availObj, sizeof(availObj),
+    "\"availability_topic\":\"%s/availability\"", mqttTopic);
   // Build device object once with the actual topic as identifier
   char deviceObj[512];
   String macAddr = WiFi.macAddress();
@@ -267,8 +285,8 @@ void publishHADiscovery() {
       "{\"name\":\"HSMap %s\",\"state_topic\":\"%s\","
       "\"value_template\":\"{{ 'ON' if value_json.space_states[%d] == 1 else 'OFF' }}\","
       "\"payload_on\":\"ON\",\"payload_off\":\"OFF\","
-      "\"device_class\":\"door\",\"unique_id\":\"hsmap_%s\",%s}",
-      spaces[i].name, mqttTopic, i, spaces[i].slug, deviceObj);
+      "\"device_class\":\"door\",\"unique_id\":\"hsmap_%s\",%s,%s}",
+      spaces[i].name, mqttTopic, i, spaces[i].slug, availObj, deviceObj);
     mqttClient.publish(topic, payload, true);
   }
 
@@ -277,8 +295,8 @@ void publishHADiscovery() {
   snprintf(payload, sizeof(payload),
     "{\"name\":\"HSMap Brightness\",\"state_topic\":\"%s\",\"command_topic\":\"%s/set/brightness\","
     "\"value_template\":\"{%% set m={0:'Off',3:'25%%',5:'50%%',8:'75%%',10:'100%%'} %%}{{ m[value_json.brightness|int]|default('75%%') }}\","
-    "\"options\":[\"Off\",\"25%%\",\"50%%\",\"75%%\",\"100%%\"],\"unique_id\":\"hsmap_brightness\",%s}",
-    mqttTopic, mqttTopic, deviceObj);
+    "\"options\":[\"Off\",\"25%%\",\"50%%\",\"75%%\",\"100%%\"],\"unique_id\":\"hsmap_brightness\",%s,%s}",
+    mqttTopic, mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
   // Animation mode — select
@@ -286,8 +304,8 @@ void publishHADiscovery() {
   snprintf(payload, sizeof(payload),
     "{\"name\":\"HSMap Animation\",\"state_topic\":\"%s\",\"command_topic\":\"%s/set/anim_mode\","
     "\"value_template\":\"{{ ['Sparkle','Breathe','Original'][value_json.anim_mode|int] }}\","
-    "\"options\":[\"Sparkle\",\"Breathe\",\"Original\"],\"unique_id\":\"hsmap_anim\",%s}",
-    mqttTopic, mqttTopic, deviceObj);
+    "\"options\":[\"Sparkle\",\"Breathe\",\"Original\"],\"unique_id\":\"hsmap_anim\",%s,%s}",
+    mqttTopic, mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
   // Poll interval — select with same presets as web UI
@@ -295,24 +313,24 @@ void publishHADiscovery() {
   snprintf(payload, sizeof(payload),
     "{\"name\":\"HSMap Poll Interval\",\"state_topic\":\"%s\",\"command_topic\":\"%s/set/poll_interval\","
     "\"value_template\":\"{%% set m={60000:'1 min',120000:'2 min',300000:'5 min',600000:'10 min'} %%}{{ m[value_json.poll_interval|int]|default('2 min') }}\","
-    "\"options\":[\"1 min\",\"2 min\",\"5 min\",\"10 min\"],\"unique_id\":\"hsmap_poll\",%s}",
-    mqttTopic, mqttTopic, deviceObj);
+    "\"options\":[\"1 min\",\"2 min\",\"5 min\",\"10 min\"],\"unique_id\":\"hsmap_poll\",%s,%s}",
+    mqttTopic, mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
   // Poll now — button
   snprintf(topic, sizeof(topic), "homeassistant/button/hsmap_poll_now/config");
   snprintf(payload, sizeof(payload),
     "{\"name\":\"HSMap Poll Now\",\"command_topic\":\"%s/set/poll_now\","
-    "\"payload_press\":\"1\",\"unique_id\":\"hsmap_poll_now\",%s}",
-    mqttTopic, deviceObj);
+    "\"payload_press\":\"1\",\"unique_id\":\"hsmap_poll_now\",%s,%s}",
+    mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
   // LED test — button
   snprintf(topic, sizeof(topic), "homeassistant/button/hsmap_led_test/config");
   snprintf(payload, sizeof(payload),
     "{\"name\":\"HSMap LED Test\",\"command_topic\":\"%s/set/led_test\","
-    "\"payload_press\":\"1\",\"unique_id\":\"hsmap_led_test\",%s}",
-    mqttTopic, deviceObj);
+    "\"payload_press\":\"1\",\"unique_id\":\"hsmap_led_test\",%s,%s}",
+    mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 }
 
