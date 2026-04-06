@@ -12,6 +12,7 @@ extern int activeWifiSlot;
 extern volatile int pollProgress;
 extern time_t lastSeenOpen[];
 extern bool spacePolling[];
+extern uint8_t spaceFailCount[];
 
 extern volatile bool forcePoll;
 extern volatile bool forceRandomPoll;
@@ -608,7 +609,8 @@ void handleApiSpaces() {
     s["state"]    = spaceStates[i] == 1 ? "open"
                   : spaceStates[i] == 0 ? "closed"
                   : "unknown";
-    s["fetching"] = (bool)spacePolling[i];
+    s["fetching"]   = (bool)spacePolling[i];
+    s["fail_count"] = spaceFailCount[i];
     time_t lo = lastSeenOpen[i];
     if (lo > 0 && ntpSynced) {
       char buf[24];
@@ -750,11 +752,31 @@ void handleApiAnim() {
   sendJson(buf);
 }
 
+void handleApiHealth() {
+  int failing = 0;
+  for (int i = 0; i < HACKERSPACE_COUNT; i++)
+    if (spaceFailCount[i] >= 3) failing++;
+
+  JsonDocument doc;
+  doc["uptime_s"]       = (uint32_t)(millis() / 1000);
+  doc["free_heap_kb"]   = ESP.getFreeHeap() / 1024.0f;
+  doc["rssi"]           = WiFi.RSSI();
+  doc["ntp_synced"]     = time(nullptr) > 1000000000L;
+  if (lastPollFinished > 0) doc["last_poll_ago_s"] = (millis() - lastPollFinished) / 1000;
+  else                      doc["last_poll_ago_s"]  = nullptr;
+  doc["spaces_failing"] = failing;
+
+  String out;
+  serializeJson(doc, out);
+  sendJson(out);
+}
+
 void setupWebServer() {
   webServer.on("/",                  HTTP_GET,  handleRoot);
   webServer.on("/icon.svg",          HTTP_GET,  handleIcon);
   webServer.on("/manifest.json",     HTTP_GET,  handleManifest);
   webServer.on("/api/spaces",        HTTP_GET,  handleApiSpaces);
+  webServer.on("/api/health",        HTTP_GET,  handleApiHealth);
   webServer.on("/api/hw",            HTTP_GET,  handleApiHw);
   webServer.on("/api/wifi-slot",     HTTP_GET,  handleApiGetWifiSlot);
   webServer.on("/api/save-wifi-slot",HTTP_POST, handleApiSaveWifiSlot);
