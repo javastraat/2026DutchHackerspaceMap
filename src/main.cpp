@@ -733,9 +733,9 @@ void ledTestTask(void *) {
 
   const struct { uint8_t r, g, b; uint32_t ms; } steps[] = {
     {40,  0,  0, 1000},  // red
-    { 0, 40,  0, 1000},  // green
-    { 0,  0, 40, 1000},  // blue
     {20, 20, 20, 1000},  // white
+    { 0,  0, 40, 1000},  // blue
+    { 0, 40,  0, 1000},  // green
     { 0,  0,  0,  500},  // off
   };
   for (auto &s : steps) {
