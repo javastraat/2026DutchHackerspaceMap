@@ -85,12 +85,44 @@ void handleApiMqtt() {
   webServer.send(200, "application/json", buf);
 }
 
+static const char WEB_ICON_SVG[] PROGMEM = R"SVG(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<defs><clipPath id="c"><rect width="100" height="100" rx="18"/></clipPath></defs>
+<g clip-path="url(#c)">
+  <rect width="100" height="33" fill="#AE1C28"/>
+  <rect y="33" width="100" height="34" fill="#FFFFFF"/>
+  <rect y="67" width="100" height="33" fill="#21468B"/>
+</g>
+<text x="50" y="50" text-anchor="middle" dominant-baseline="central"
+  font-family="Arial,sans-serif" font-weight="bold" font-size="42"
+  stroke="#21468B" stroke-width="5" paint-order="stroke" fill="white">HS</text>
+</svg>)SVG";
+
+static const char WEB_MANIFEST[] PROGMEM = R"JSON({
+  "name": "Dutch Hackerspace Map",
+  "short_name": "HS Map",
+  "description": "Monitor Dutch hackerspaces open/closed status",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#21468B",
+  "icons": [
+    {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+  ]
+})JSON";
+
 static const char WEB_HTML[] PROGMEM = R"HTML(<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HackerspaceMap</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#21468B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HS Map">
 <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <style>
 :root {
@@ -186,7 +218,7 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
     <div class="card">
       <h3>MQTT</h3>
       <div class="form-row"><label>Broker</label><input type="text" id="mqtt-broker" maxlength="63"></div>
-      <div class="form-row"><label>Port</label><input type="number" id="mqtt-port" min="1" max="65535"></div>
+      <div class="form-row"><label>Port</label><input type="text" id="mqtt-port" min="1" max="65535"></div>
       <div class="form-row"><label>Topic</label><input type="text" id="mqtt-topic" maxlength="63"></div>
       <div class="form-row"><label>Username</label><input type="text" id="mqtt-user" maxlength="63" autocomplete="off"></div>
       <div class="form-row"><label>Password</label>
@@ -258,6 +290,11 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
 
   </div>
 </div>
+<footer style="text-align:center;padding:20px;font-size:.8em;color:var(--muted)">
+  <a href="https://github.com/hackwinkel/2026DutchHackerspaceMap" target="_blank" rel="noopener" style="color:#007bff;text-decoration:none">Hardware on GitHub</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/javastraat/2026DutchHackerspaceMap" target="_blank" rel="noopener" style="color:#007bff;text-decoration:none">Software on GitHub</a>
+</footer>
 <script>
 const t = localStorage.getItem('theme') || 'dark';
 document.getElementById('theme-btn').textContent = t === 'dark' ? '🌙' : '☀️';
@@ -446,6 +483,14 @@ void handleRoot() {
   webServer.send_P(200, "text/html", WEB_HTML);
 }
 
+void handleIcon() {
+  webServer.send_P(200, "image/svg+xml", WEB_ICON_SVG);
+}
+
+void handleManifest() {
+  webServer.send_P(200, "application/manifest+json", WEB_MANIFEST);
+}
+
 void handleApiHw() {
   char buf[512];
   snprintf(buf, sizeof(buf),
@@ -573,6 +618,8 @@ void handleApiAnim() {
 
 void setupWebServer() {
   webServer.on("/",                  HTTP_GET,  handleRoot);
+  webServer.on("/icon.svg",          HTTP_GET,  handleIcon);
+  webServer.on("/manifest.json",     HTTP_GET,  handleManifest);
   webServer.on("/api/spaces",        HTTP_GET,  handleApiSpaces);
   webServer.on("/api/hw",            HTTP_GET,  handleApiHw);
   webServer.on("/api/wifi-slot",     HTTP_GET,  handleApiGetWifiSlot);
