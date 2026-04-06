@@ -20,7 +20,8 @@ static const SpaceInfo spaceInfo[] = {
   {17,"NURDspace"},{18,"Bitlair"}
 };
 
-extern bool forcePoll;
+extern volatile bool forcePoll;
+extern volatile bool forceRandomPoll;
 extern uint8_t animMode;
 extern uint8_t ledBrightness;
 extern uint32_t pollIntervalMs;
@@ -261,7 +262,10 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
     </div>
     <div class="card">
       <h3>Poll interval</h3>
-      <button class="btn-primary" onclick="pollNow()" id="poll-now-btn">Update now</button>
+      <div class="presets">
+        <button class="btn-primary" onclick="pollNow('sequential')" id="poll-now-btn">Poll sequential</button>
+        <button class="btn-primary" onclick="pollNow('random')" id="poll-random-btn">Poll random</button>
+      </div>
       <div class="presets" id="poll-presets" style="margin-top:12px">
         <button class="preset-btn" data-ms="60000">1 min</button>
         <button class="preset-btn" data-ms="120000">2 min</button>
@@ -481,13 +485,20 @@ function loadAllSlotLabels() {
 loadAllSlotLabels();
 loadWifiSlot();
 
-function pollNow() {
-  const btn = document.getElementById('poll-now-btn');
-  btn.disabled = true;
-  btn.textContent = 'Polling…';
-  fetch('/api/poll-now', {method:'POST'}).then(()=>{
-    setTimeout(()=>{ btn.disabled=false; btn.textContent='Update now'; pollSpaces(); }, 5000);
-  }).catch(()=>{ btn.disabled=false; btn.textContent='Update now'; });
+function setPollButtonsDisabled(disabled, activeMode='') {
+  const seqBtn = document.getElementById('poll-now-btn');
+  const rndBtn = document.getElementById('poll-random-btn');
+  seqBtn.disabled = disabled;
+  rndBtn.disabled = disabled;
+  seqBtn.textContent = disabled && activeMode==='sequential' ? 'Polling sequential…' : 'Poll sequential';
+  rndBtn.textContent = disabled && activeMode==='random' ? 'Polling random…' : 'Poll random';
+}
+
+function pollNow(mode='sequential') {
+  setPollButtonsDisabled(true, mode);
+  fetch('/api/poll-now?mode='+encodeURIComponent(mode), {method:'POST'}).then(()=>{
+    setTimeout(()=>{ setPollButtonsDisabled(false); pollSpaces(); }, 5000);
+  }).catch(()=>{ setPollButtonsDisabled(false); });
 }
 
 function pollPoll() {
@@ -648,7 +659,14 @@ void handleApiSaveWifiSlot() {
 }
 
 void handleApiPollNow() {
-  forcePoll = true;
+  String mode = webServer.hasArg("mode") ? webServer.arg("mode") : "sequential";
+  if (mode.equalsIgnoreCase("random")) {
+    forcePoll = false;
+    forceRandomPoll = true;
+  } else {
+    forceRandomPoll = false;
+    forcePoll = true;
+  }
   webServer.send(200, "text/plain", "ok");
 }
 

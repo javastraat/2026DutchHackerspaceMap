@@ -117,7 +117,8 @@ void saveDisplaySettings();
 void publishMqttStatus();
 void startLedTest();
 extern uint32_t lastMqttPublish;
-extern bool forcePoll;
+extern volatile bool forcePoll;
+extern volatile bool forceRandomPoll;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (length == 0 || length > 63) return;
@@ -125,12 +126,13 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   memcpy(msg, payload, length);
   msg[length] = '\0';
 
-  char cmdBrightness[96], cmdAnim[96], cmdPoll[96], cmdLedTest[96], cmdPollNow[96];
+  char cmdBrightness[96], cmdAnim[96], cmdPoll[96], cmdLedTest[96], cmdPollNow[96], cmdPollRandom[96];
   snprintf(cmdBrightness, sizeof(cmdBrightness), "%s/set/brightness",    mqttTopic);
   snprintf(cmdAnim,       sizeof(cmdAnim),       "%s/set/anim_mode",     mqttTopic);
-  snprintf(cmdPoll,       sizeof(cmdPoll),        "%s/set/poll_interval", mqttTopic);
+  snprintf(cmdPoll,       sizeof(cmdPoll),       "%s/set/poll_interval", mqttTopic);
   snprintf(cmdLedTest,    sizeof(cmdLedTest),    "%s/set/led_test",      mqttTopic);
   snprintf(cmdPollNow,    sizeof(cmdPollNow),    "%s/set/poll_now",      mqttTopic);
+  snprintf(cmdPollRandom, sizeof(cmdPollRandom), "%s/set/poll_random",   mqttTopic);
 
   if (strcmp(topic, cmdBrightness) == 0) {
     uint8_t v = ledBrightness;
@@ -161,7 +163,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     startLedTest();
     return; // no state to publish
   } else if (strcmp(topic, cmdPollNow) == 0) {
+    forceRandomPoll = false;
     forcePoll = true;
+    return; // no state to publish
+  } else if (strcmp(topic, cmdPollRandom) == 0) {
+    forcePoll = false;
+    forceRandomPoll = true;
     return; // no state to publish
   } else {
     return; // unknown topic
@@ -317,11 +324,19 @@ void publishHADiscovery() {
     mqttTopic, mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
-  // Poll now — button
+  // Poll now (sequential) — button
   snprintf(topic, sizeof(topic), "homeassistant/button/hsmap_poll_now/config");
   snprintf(payload, sizeof(payload),
-    "{\"name\":\"HSMap Poll Now\",\"command_topic\":\"%s/set/poll_now\","
+    "{\"name\":\"HSMap Poll Sequential\",\"command_topic\":\"%s/set/poll_now\","
     "\"payload_press\":\"1\",\"unique_id\":\"hsmap_poll_now\",%s,%s}",
+    mqttTopic, availObj, deviceObj);
+  mqttClient.publish(topic, payload, true);
+
+  // Poll random — button
+  snprintf(topic, sizeof(topic), "homeassistant/button/hsmap_poll_random/config");
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"HSMap Poll Random\",\"command_topic\":\"%s/set/poll_random\","
+    "\"payload_press\":\"1\",\"unique_id\":\"hsmap_poll_random\",%s,%s}",
     mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
@@ -444,8 +459,9 @@ uint8_t customBlue = 0;
 String serialLine;
 uint32_t lastSerialByteTime = 0;
 uint32_t lastPollTime = 0;
-bool forcePoll = false;
-volatile int pollProgress = -1;  // -1 = idle, 1-18 = currently fetching that space
+volatile bool forcePoll = false;
+volatile bool forceRandomPoll = false;
+volatile int pollProgress = -1;  // -1 = idle, 1-18 = current position in the active poll run
 uint32_t pollIntervalMs = POLL_INTERVAL_MS;
 
 time_t lastSeenOpen[MAP_LED_COUNT] = {0};  // unix timestamp, 0 = never seen open
@@ -707,10 +723,14 @@ uint8_t fetchSpaceState(const char *url) {
   return openField.as<bool>() ? SPACE_OPEN : SPACE_CLOSED;
 }
 
-void buildRandomPollOrder(int *order, int count) {
+void buildSequentialPollOrder(int *order, int count) {
   for (int i = 0; i < count; i++) {
     order[i] = i;
   }
+}
+
+void buildRandomPollOrder(int *order, int count) {
+  buildSequentialPollOrder(order, count);
   for (int i = count - 1; i > 0; i--) {
     int j = random(i + 1);
     int tmp = order[i];
@@ -719,15 +739,12 @@ void buildRandomPollOrder(int *order, int count) {
   }
 }
 
-void pollAllSpaces() {
-  Serial.println("Polling all hackerspaces in random order...");
-  int order[HACKERSPACE_COUNT];
-  buildRandomPollOrder(order, HACKERSPACE_COUNT);
-
-  for (int pos = 0; pos < HACKERSPACE_COUNT; pos++) {
+void pollAllSpacesWithOrder(const int *order, int count, const char *label) {
+  Serial.printf("Polling all hackerspaces in %s order...\n", label);
+  for (int pos = 0; pos < count; pos++) {
     int i = order[pos];
     pollProgress = pos + 1;
-    Serial.printf("  [%2d/%2d] #%d %s\n", pos + 1, HACKERSPACE_COUNT, hackerspaces[i].ledNumber, hackerspaces[i].url);
+    Serial.printf("  [%2d/%2d] #%d %s\n", pos + 1, count, hackerspaces[i].ledNumber, hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = true;
     setSpaceColor(hackerspaces[i].ledNumber, 255, 80, 0);
     uint8_t state = fetchSpaceState(hackerspaces[i].url);
@@ -737,6 +754,18 @@ void pollAllSpaces() {
   pollProgress = -1;
   lastPollFinished = millis();
   Serial.println("Poll done.");
+}
+
+void pollAllSpaces() {
+  int order[HACKERSPACE_COUNT];
+  buildSequentialPollOrder(order, HACKERSPACE_COUNT);
+  pollAllSpacesWithOrder(order, HACKERSPACE_COUNT, "sequential");
+}
+
+void pollAllSpacesRandom() {
+  int order[HACKERSPACE_COUNT];
+  buildRandomPollOrder(order, HACKERSPACE_COUNT);
+  pollAllSpacesWithOrder(order, HACKERSPACE_COUNT, "random");
 }
 
 static TaskHandle_t pollTaskHandle = nullptr;
@@ -778,11 +807,19 @@ void pollTaskFunc(void *) {
   bool firstPoll = true;
   for (;;) {
     if (wifiIsStation && WiFi.status() == WL_CONNECTED) {
-      if (firstPoll || forcePoll || (millis() - lastPollTime) >= pollIntervalMs) {
+      bool intervalDue = (millis() - lastPollTime) >= pollIntervalMs;
+      if (firstPoll || forcePoll || forceRandomPoll || intervalDue) {
+        bool runSequential = firstPoll || forcePoll;
         firstPoll = false;
         forcePoll = false;
+        forceRandomPoll = false;
         lastPollTime = millis();
-        pollAllSpaces();
+
+        if (runSequential) {
+          pollAllSpaces();
+        } else {
+          pollAllSpacesRandom();
+        }
       }
     }
     vTaskDelay(pdMS_TO_TICKS(500));
