@@ -1144,7 +1144,6 @@ void startupTest() {
 }
 
 void setup() {
-  loadMqttSettings();
   mqttClient.setServer(mqttBroker, mqttPort);
   mqttClient.setCallback(mqttCallback);
   mqttClient.setBufferSize(1024);
@@ -1189,7 +1188,6 @@ void setup() {
 
   lastPollTime = 0; // triggers poll task to run immediately on first tick
 
-  loadMqttSettings();
   setupWebServer();
 
   // Watchdog: 30s timeout, panic-reset on trigger. Register the loop task.

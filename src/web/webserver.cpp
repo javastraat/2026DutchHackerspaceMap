@@ -47,7 +47,8 @@ void handleApiMqtt() {
       mqttBroker[sizeof(mqttBroker)-1] = 0;
     }
     if (webServer.hasArg("port")) {
-      mqttPort = webServer.arg("port").toInt();
+      int p = webServer.arg("port").toInt();
+      if (p >= 1 && p <= 65535) mqttPort = (uint16_t)p;
     }
     if (webServer.hasArg("topic")) {
       strncpy(mqttTopic, webServer.arg("topic").c_str(), sizeof(mqttTopic)-1);
