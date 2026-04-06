@@ -7,6 +7,7 @@
 extern uint8_t spaceStates[];
 extern uint32_t lastPollFinished;
 extern int activeWifiSlot;
+extern volatile int pollProgress;
 
 struct SpaceInfo { int led; const char *name; };
 static const SpaceInfo spaceInfo[] = {
@@ -214,6 +215,7 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
 
     <div class="card">
       <h3>Hackerspaces</h3>
+      <div id="spaces-summary" style="font-size:.82em;color:var(--muted);margin-bottom:8px;min-height:1.1em"></div>
       <div id="spaces-list"></div>
       <div class="poll-time" id="poll-time">Not yet polled</div>
     </div>
@@ -421,8 +423,14 @@ function togglePass() {
   const p = document.getElementById('wifi-pass');
   p.type = p.type === 'password' ? 'text' : 'password';
 }
+let spacesTimer = null;
+function scheduleSpacesPoll(ms) {
+  clearTimeout(spacesTimer);
+  spacesTimer = setTimeout(pollSpaces, ms);
+}
 function pollSpaces() {
   fetch('/api/spaces').then(r=>r.json()).then(d=>{
+    const polling = d.poll_progress !== null && d.poll_progress !== undefined;
     const list = document.getElementById('spaces-list');
     list.innerHTML = d.spaces.map(s=>{
       const cls = s.state==='open' ? 'open' : s.state==='closed' ? 'closed' : 'unknown';
@@ -432,16 +440,24 @@ function pollSpaces() {
         <span class="space-badge badge-${cls}">${s.state}</span>
       </div>`;
     }).join('');
-    if (d.polled_ago_s !== null) {
+    const open = d.spaces.filter(s=>s.state==='open').length;
+    const closed = d.spaces.filter(s=>s.state==='closed').length;
+    const unknown = d.spaces.length - open - closed;
+    document.getElementById('spaces-summary').textContent =
+      polling ? 'Polling '+d.poll_progress+'/'+d.spaces.length+'…'
+              : open+' open · '+closed+' closed · '+unknown+' unknown';
+    if (polling) {
+      document.getElementById('poll-time').textContent = 'Polling in progress…';
+    } else if (d.polled_ago_s !== null) {
       const ago = d.polled_ago_s < 60 ? d.polled_ago_s+'s ago'
                 : Math.floor(d.polled_ago_s/60)+'m ago';
       const timeStr = d.last_poll_str ? d.last_poll_str+' ('+ago+')' : ago;
       document.getElementById('poll-time').textContent = 'Last polled: '+timeStr;
     }
-  }).catch(()=>{});
+    scheduleSpacesPoll(polling ? 2000 : 15000);
+  }).catch(()=>{ scheduleSpacesPoll(15000); });
 }
 pollSpaces();
-setInterval(pollSpaces, 30000);
 
 function loadAllSlotLabels() {
   for (let i=0; i<6; i++) {
@@ -552,7 +568,9 @@ void handleApiSpaces() {
     json += "\",\"state\":\""; json += state;
     json += "\"}";
   }
-  json += "],\"polled_ago_s\":";
+  json += "],\"poll_progress\":";
+  json += pollProgress >= 0 ? String(pollProgress) : "null";
+  json += ",\"polled_ago_s\":";
   json += lastPollFinished > 0 ? String((millis() - lastPollFinished) / 1000) : "null";
   time_t now = time(nullptr);
   if (lastPollFinished > 0 && now > 1000000000UL) {

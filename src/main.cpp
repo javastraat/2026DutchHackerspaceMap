@@ -400,6 +400,7 @@ String serialLine;
 uint32_t lastSerialByteTime = 0;
 uint32_t lastPollTime = 0;
 bool forcePoll = false;
+volatile int pollProgress = -1;  // -1 = idle, 1-18 = currently fetching that space
 uint32_t pollIntervalMs = POLL_INTERVAL_MS;
 
 uint8_t baseR[MAP_LED_COUNT] = {0};
@@ -658,13 +659,15 @@ uint8_t fetchSpaceState(const char *url) {
 void pollAllSpaces() {
   Serial.println("Polling all hackerspaces...");
   for (int i = 0; i < HACKERSPACE_COUNT; i++) {
-    Serial.printf("  [%2d] %s\n", hackerspaces[i].ledNumber, hackerspaces[i].url);
+    pollProgress = i + 1;
+    Serial.printf("  [%2d/%2d] %s\n", i + 1, HACKERSPACE_COUNT, hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = true;
     setSpaceColor(hackerspaces[i].ledNumber, 255, 80, 0);
     uint8_t state = fetchSpaceState(hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = false;
     setSpaceState(hackerspaces[i].ledNumber, state);
   }
+  pollProgress = -1;
   lastPollFinished = millis();
   Serial.println("Poll done.");
 }
