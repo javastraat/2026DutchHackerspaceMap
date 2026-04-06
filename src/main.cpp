@@ -191,10 +191,23 @@ void publishHADiscovery() {
   char topic[128];
   char payload[768];
   // Build device object once with the actual topic as identifier
-  char deviceObj[256];
+  char deviceObj[512];
+  String macAddr = WiFi.macAddress();
   snprintf(deviceObj, sizeof(deviceObj),
-    "\"device\":{\"identifiers\":[\"HSMap_%s\"],\"name\":\"HackerspaceMap\",\"manufacturer\":\"Custom\",\"model\":\"ESP32-C3\"}",
-    mqttTopic);
+    "\"device\":{"
+      "\"identifiers\":[\"HSMap_%s\"],"
+      "\"connections\":[[\"mac\",\"%s\"]],"
+      "\"name\":\"HackerspaceMap\","
+      "\"manufacturer\":\"Theo Borm\","
+      "\"model\":\"ESP32-C3\","
+      "\"model_id\":\"HSMap-C3\","
+      "\"serial_number\":\"%s\","
+      "\"sw_version\":\"https://github.com/javastraat/2026DutchHackerspaceMap\","
+      "\"hw_version\":\"https://github.com/hackwinkel/2026DutchHackerspaceMap\","
+      "\"suggested_area\":\"Hackerspace\","
+      "\"configuration_url\":\"http://" OTA_HOSTNAME ".local\""
+    "}",
+    mqttTopic, macAddr.c_str(), macAddr.c_str());
 
   // Individual binary_sensor per hackerspace (open = ON, closed/unknown = OFF)
   static const struct { const char *slug; const char *name; } spaces[18] = {
