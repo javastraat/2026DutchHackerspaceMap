@@ -772,7 +772,7 @@ void pollAllSpacesWithOrder(const int *order, int count, const char *label) {
     pollProgress = pos + 1;
     Serial.printf("  [%2d/%2d] #%d %s\n", pos + 1, count, hackerspaces[i].ledNumber, hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = true;
-    setSpaceColor(hackerspaces[i].ledNumber, 255, 80, 0);
+    setSpaceColor(hackerspaces[i].ledNumber, 40, 16, 0);
     uint8_t state = fetchSpaceState(hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = false;
     setSpaceState(hackerspaces[i].ledNumber, state);
@@ -891,7 +891,7 @@ void updateAnimation() {
 
   if (animMode == ANIM_MODE_ORIGINAL) {
     for (int i = 0; i < MAP_LED_COUNT; i++) {
-      if (spacePolling[i]) { setPixel(i, 255, 80, 0); continue; }
+      if (spacePolling[i]) { setPixel(i, 40, 16, 0); continue; }
       if (++spacesAnim[i].count >= spacesAnim[i].speed) {
         spacesAnim[i].count = 0;
         spacesAnim[i].phase = (spacesAnim[i].phase + 1) % 31;
@@ -1103,9 +1103,8 @@ void startupTest() {
   showLedsLocked();
   serviceDelay(1000);
 
-  Serial.println("Map LEDs green");
-  clearAll();
-  fillRange(0, MAP_LED_COUNT, 0, 32, 0);
+  Serial.println("All LEDs white");
+  fillAll(20, 20, 20);
   showLedsLocked();
   serviceDelay(1000);
 
@@ -1115,8 +1114,10 @@ void startupTest() {
   showLedsLocked();
   serviceDelay(1000);
 
-  Serial.println("All LEDs white");
-  fillAll(20, 20, 20);
+
+  Serial.println("Map LEDs green");
+  clearAll();
+  fillRange(0, MAP_LED_COUNT, 0, 32, 0);
   showLedsLocked();
   serviceDelay(1000);
 
