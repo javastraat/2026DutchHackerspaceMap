@@ -497,6 +497,10 @@ uint8_t baseG[MAP_LED_COUNT] = {0};
 uint8_t baseB[MAP_LED_COUNT] = {0};
 float sparkle[MAP_LED_COUNT] = {0};
 bool spacePolling[MAP_LED_COUNT] = {false};
+uint8_t spaceFailCount[HACKERSPACE_COUNT] = {0};
+static uint32_t pollCycleCount = 0;
+static const uint8_t FAIL_SKIP_THRESHOLD = 3;
+static const uint8_t FAIL_RETRY_EVERY   = 5;
 uint8_t animMode = ANIM_MODE_DEFAULT;
 TaskHandle_t animTaskHandle = nullptr;
 
@@ -766,17 +770,35 @@ void buildRandomPollOrder(int *order, int count) {
 }
 
 void pollAllSpacesWithOrder(const int *order, int count, const char *label) {
-  Serial.printf("Polling all hackerspaces in %s order...\n", label);
+  Serial.printf("Polling all hackerspaces in %s order... (cycle %u)\n", label, pollCycleCount);
   for (int pos = 0; pos < count; pos++) {
     int i = order[pos];
     pollProgress = pos + 1;
+
+    bool shouldSkip = spaceFailCount[i] >= FAIL_SKIP_THRESHOLD
+                      && (pollCycleCount % FAIL_RETRY_EVERY != 0);
+    if (shouldSkip) {
+      Serial.printf("  [%2d/%2d] #%d %s — skipped (fails=%d)\n",
+                    pos + 1, count, hackerspaces[i].ledNumber, hackerspaces[i].url, spaceFailCount[i]);
+      continue;
+    }
+
     Serial.printf("  [%2d/%2d] #%d %s\n", pos + 1, count, hackerspaces[i].ledNumber, hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = true;
     setSpaceColor(hackerspaces[i].ledNumber, 40, 16, 0);
     uint8_t state = fetchSpaceState(hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = false;
+
+    if (state == SPACE_UNKNOWN) {
+      if (spaceFailCount[i] < 255) spaceFailCount[i]++;
+      Serial.printf("             fail count now %d\n", spaceFailCount[i]);
+    } else {
+      spaceFailCount[i] = 0;
+    }
+
     setSpaceState(hackerspaces[i].ledNumber, state);
   }
+  pollCycleCount++;
   pollProgress = -1;
   lastPollFinished = millis();
   Serial.println("Poll done.");
