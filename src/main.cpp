@@ -674,6 +674,39 @@ void pollAllSpaces() {
 
 static TaskHandle_t pollTaskHandle = nullptr;
 
+static volatile bool ledTestActive = false;
+
+void ledTestTask(void *) {
+  ledTestActive = true;
+  if (animTaskHandle) vTaskSuspend(animTaskHandle);
+
+  const struct { uint8_t r, g, b; uint32_t ms; } steps[] = {
+    {40,  0,  0, 1000},  // red
+    { 0, 40,  0, 1000},  // green
+    { 0,  0, 40, 1000},  // blue
+    {20, 20, 20, 1000},  // white
+    { 0,  0,  0,  500},  // off
+  };
+  for (auto &s : steps) {
+    fillAll(s.r, s.g, s.b);
+    showLedsLocked();
+    vTaskDelay(pdMS_TO_TICKS(s.ms));
+  }
+
+  // Restore space states
+  for (int i = 1; i <= MAP_LED_COUNT; i++) setSpaceState(i, spaceStates[i - 1]);
+  showLedsLocked();
+
+  if (animTaskHandle) vTaskResume(animTaskHandle);
+  ledTestActive = false;
+  vTaskDelete(nullptr);
+}
+
+void startLedTest() {
+  if (!ledTestActive)
+    xTaskCreate(ledTestTask, "ledtest", 2048, nullptr, 1, nullptr);
+}
+
 void pollTaskFunc(void *) {
   bool firstPoll = true;
   for (;;) {

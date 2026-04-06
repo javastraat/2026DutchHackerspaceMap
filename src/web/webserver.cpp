@@ -23,6 +23,7 @@ extern uint8_t animMode;
 extern uint8_t ledBrightness;
 extern uint32_t pollIntervalMs;
 void saveDisplaySettings();
+void startLedTest();
 extern String wifiLabel[];
 extern String wifiSsid[];
 extern String wifiPass[];
@@ -278,6 +279,8 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
       <label class="anim-option"><input type="radio" name="anim" value="0"> Sparkle</label>
       <label class="anim-option"><input type="radio" name="anim" value="1"> Breathe</label>
       <label class="anim-option"><input type="radio" name="anim" value="2"> Original</label>
+      <div class="section-label">Test</div>
+      <button class="btn-primary" id="led-test-btn" onclick="ledTest()">Test LEDs</button>
     </div>
     <div class="card">
       <h3>Hardware</h3>
@@ -494,6 +497,14 @@ document.querySelectorAll('#poll-presets .preset-btn').forEach(b=>{
   });
 });
 pollPoll();
+
+function ledTest() {
+  const btn = document.getElementById('led-test-btn');
+  btn.disabled = true;
+  btn.textContent = 'Testing…';
+  fetch('/api/led-test', {method:'POST'}).catch(()=>{});
+  setTimeout(()=>{ btn.disabled=false; btn.textContent='Test LEDs'; }, 5000);
+}
 </script>
 </body>
 </html>)HTML";
@@ -636,6 +647,11 @@ void handleApiReboot() {
   ESP.restart();
 }
 
+void handleApiLedTest() {
+  startLedTest();
+  webServer.send(200, "text/plain", "ok");
+}
+
 void handleApiBrightness() {
   if (webServer.method() == HTTP_POST && webServer.hasArg("v")) {
     int v = webServer.arg("v").toInt();
@@ -675,6 +691,7 @@ void setupWebServer() {
   webServer.on("/api/wifi-slot",     HTTP_GET,  handleApiGetWifiSlot);
   webServer.on("/api/save-wifi-slot",HTTP_POST, handleApiSaveWifiSlot);
   webServer.on("/api/reboot",        HTTP_POST, handleApiReboot);
+  webServer.on("/api/led-test",      HTTP_POST, handleApiLedTest);
   webServer.on("/api/brightness",    HTTP_ANY,  handleApiBrightness);
   webServer.on("/api/poll-now",      HTTP_POST, handleApiPollNow);
   webServer.on("/api/poll",          HTTP_ANY,  handleApiPoll);
