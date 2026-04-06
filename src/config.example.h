@@ -46,9 +46,9 @@
 #define ANIM_TICK_MS       30                 // animation update interval (ms)
 
 // --- Animation modes ---
-#define ANIM_MODE_SPARKLE    0    // map LEDs randomly twinkle white on top of state color
-#define ANIM_MODE_BREATHE    1    // backlight slowly pulses in and out
-#define ANIM_MODE_ORIGINAL   2    // Theo Borm: each space breathes at its own speed + rotating rainbow backlight
+#define ANIM_MODE_ORIGINAL   0    // Theo Borm: each space breathes at its own speed + rotating rainbow backlight
+#define ANIM_MODE_SPARKLE    1    // map LEDs randomly twinkle white on top of state color
+#define ANIM_MODE_BREATHE    2    // backlight slowly pulses in and out
 
 #define ANIM_MODE_DEFAULT    ANIM_MODE_ORIGINAL
 #define SPARKLE_BRIGHTNESS   2    // 0 (off) to 10 (max) — white flash intensity

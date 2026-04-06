@@ -280,9 +280,9 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
         <button class="preset-btn" data-v="10">100%</button>
       </div>
       <div class="section-label">Animation</div>
-      <label class="anim-option"><input type="radio" name="anim" value="0"> Sparkle</label>
-      <label class="anim-option"><input type="radio" name="anim" value="1"> Breathe</label>
-      <label class="anim-option"><input type="radio" name="anim" value="2"> Original</label>
+      <label class="anim-option"><input type="radio" name="anim" value="0"> Original</label>
+      <label class="anim-option"><input type="radio" name="anim" value="1"> Sparkle</label>
+      <label class="anim-option"><input type="radio" name="anim" value="2"> Breathe</label>
       <div class="section-label">Test</div>
       <button class="btn-primary" id="led-test-btn" onclick="ledTest()">Test LEDs</button>
     </div>
