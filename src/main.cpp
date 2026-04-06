@@ -144,10 +144,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     saveDisplaySettings();
   } else if (strcmp(topic, cmdAnim) == 0) {
     uint8_t m = 0;
-    if      (strcmp(msg, "Original") == 0) m = 0;
-    else if (strcmp(msg, "Sparkle")  == 0) m = 1;
-    else if (strcmp(msg, "Breathe")  == 0) m = 2;
-    else return;
+    if      (strcmp(msg, "Breathe")  == 0) m = 1;
+    else if (strcmp(msg, "Original") == 0) m = 2;
     animMode = m;
     saveDisplaySettings();
   } else if (strcmp(topic, cmdPoll) == 0) {
@@ -305,8 +303,8 @@ void publishHADiscovery() {
   snprintf(topic, sizeof(topic), "homeassistant/select/hsmap_anim/config");
   snprintf(payload, sizeof(payload),
     "{\"name\":\"HSMap Animation\",\"state_topic\":\"%s\",\"command_topic\":\"%s/set/anim_mode\","
-    "\"value_template\":\"{{ ['Original','Sparkle','Breathe'][value_json.anim_mode|int] }}\","
-    "\"options\":[\"Original\",\"Sparkle\",\"Breathe\"],\"unique_id\":\"hsmap_anim\",%s,%s}",
+    "\"value_template\":\"{{ ['Sparkle','Breathe','Original'][value_json.anim_mode|int] }}\","
+    "\"options\":[\"Sparkle\",\"Breathe\",\"Original\"],\"unique_id\":\"hsmap_anim\",%s,%s}",
     mqttTopic, mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
