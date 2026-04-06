@@ -227,15 +227,19 @@ void publishMqttStatus() {
   snprintf(availTopic, sizeof(availTopic), "%s/availability", mqttTopic);
   mqttClient.publish(availTopic, "online", true);
   JsonDocument doc;
-  // Add all space states
-  JsonArray arr = doc["space_states"].to<JsonArray>();
-  for (int i = 0; i < MAP_LED_COUNT; ++i) arr.add(spaceStates[i]);
+  JsonObject spaces = doc["spaces"].to<JsonObject>();
+  for (int i = 0; i < HACKERSPACE_COUNT; ++i) {
+    const char *state = spaceStates[i] == 1 ? "open"
+                      : spaceStates[i] == 0 ? "closed"
+                      : "unknown";
+    spaces[hackerspaces[i].name] = state;
+  }
   doc["poll_interval"] = pollIntervalMs;
   doc["brightness"] = ledBrightness;
   doc["anim_mode"] = animMode;
   doc["ota_fill_mode"] = otaFillMode;
   doc["hw_chip"] = "ESP32-C3";
-  char buf[512];
+  char buf[768];
   size_t n = serializeJson(doc, buf);
   mqttClient.publish(mqttTopic, buf, n);
 }
