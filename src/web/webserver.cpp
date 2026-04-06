@@ -8,6 +8,7 @@ extern uint8_t spaceStates[];
 extern uint32_t lastPollFinished;
 extern int activeWifiSlot;
 extern volatile int pollProgress;
+extern time_t lastSeenOpen[];
 
 struct SpaceInfo { int led; const char *name; };
 static const SpaceInfo spaceInfo[] = {
@@ -189,6 +190,7 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
 .badge-closed{background:#dc354522;color:#dc3545}
 .badge-unknown{background:#007bff22;color:#007bff}
 .poll-time{font-size:.75em;color:var(--muted);margin-top:10px;text-align:right}
+.last-open{font-size:.72em;color:var(--muted);display:block;margin-top:1px}
 .section-label{font-size:.75em;text-transform:uppercase;letter-spacing:.08em;
   color:var(--muted);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--row-border)}
 .section-label:first-of-type{margin-top:0}
@@ -437,9 +439,11 @@ function pollSpaces() {
     const list = document.getElementById('spaces-list');
     list.innerHTML = d.spaces.map(s=>{
       const cls = s.state==='open' ? 'open' : s.state==='closed' ? 'closed' : 'unknown';
+      const lastOpen = s.last_open && s.state!=='open'
+        ? `<span class="last-open">last open ${s.last_open}</span>` : '';
       return `<div class="space-row">
         <div class="space-dot dot-${cls}"></div>
-        <span class="space-name">${s.name}</span>
+        <span class="space-name">${s.name}${lastOpen}</span>
         <span class="space-badge badge-${cls}">${s.state}</span>
       </div>`;
     }).join('');
@@ -569,6 +573,7 @@ void handleApiHw() {
 
 void handleApiSpaces() {
   String json = "{\"spaces\":[";
+  time_t now = time(nullptr);
   for (int i = 0; i < 18; i++) {
     const char *state = spaceStates[i] == 1 ? "open"
                       : spaceStates[i] == 0 ? "closed"
@@ -577,13 +582,28 @@ void handleApiSpaces() {
     json += "{\"led\":";  json += spaceInfo[i].led;
     json += ",\"name\":\""; json += spaceInfo[i].name;
     json += "\",\"state\":\""; json += state;
-    json += "\"}";
+    json += "\",\"last_open\":";
+    time_t lo = lastSeenOpen[i];
+    if (lo > 0 && now > 1000000000UL) {
+      char buf[24];
+      uint32_t ago = (uint32_t)(now - lo);
+      if      (ago < 60)    snprintf(buf, sizeof(buf), "\"just now\"");
+      else if (ago < 3600)  snprintf(buf, sizeof(buf), "\"%um ago\"", ago / 60);
+      else if (ago < 86400) {
+        struct tm *t = localtime(&lo);
+        char tb[6]; strftime(tb, sizeof(tb), "%H:%M", t);
+        snprintf(buf, sizeof(buf), "\"at %s\"", tb);
+      } else                snprintf(buf, sizeof(buf), "\"%ud ago\"", ago / 86400);
+      json += buf;
+    } else {
+      json += "null";
+    }
+    json += "}";
   }
   json += "],\"poll_progress\":";
   json += pollProgress >= 0 ? String(pollProgress) : "null";
   json += ",\"polled_ago_s\":";
   json += lastPollFinished > 0 ? String((millis() - lastPollFinished) / 1000) : "null";
-  time_t now = time(nullptr);
   if (lastPollFinished > 0 && now > 1000000000UL) {
     uint32_t ago_s = (millis() - lastPollFinished) / 1000;
     time_t poll_ts = now - (time_t)ago_s;

@@ -403,6 +403,8 @@ bool forcePoll = false;
 volatile int pollProgress = -1;  // -1 = idle, 1-18 = currently fetching that space
 uint32_t pollIntervalMs = POLL_INTERVAL_MS;
 
+time_t lastSeenOpen[MAP_LED_COUNT] = {0};  // unix timestamp, 0 = never seen open
+
 uint8_t baseR[MAP_LED_COUNT] = {0};
 uint8_t baseG[MAP_LED_COUNT] = {0};
 uint8_t baseB[MAP_LED_COUNT] = {0};
@@ -449,6 +451,10 @@ void setSpaceColor(int spaceNumber, uint8_t red, uint8_t green, uint8_t blue) {
 void setSpaceState(int spaceNumber, uint8_t state) {
   if (spaceNumber >= 1 && spaceNumber <= MAP_LED_COUNT)
     spaceStates[spaceNumber - 1] = state;
+  if (state == SPACE_OPEN) {
+    time_t now = time(nullptr);
+    if (now > 1000000000UL) lastSeenOpen[spaceNumber - 1] = now;
+  }
   switch (state) {
     case SPACE_OPEN:
       setSpaceColor(spaceNumber, 0, 40, 0);
