@@ -707,11 +707,27 @@ uint8_t fetchSpaceState(const char *url) {
   return openField.as<bool>() ? SPACE_OPEN : SPACE_CLOSED;
 }
 
+void buildRandomPollOrder(int *order, int count) {
+  for (int i = 0; i < count; i++) {
+    order[i] = i;
+  }
+  for (int i = count - 1; i > 0; i--) {
+    int j = random(i + 1);
+    int tmp = order[i];
+    order[i] = order[j];
+    order[j] = tmp;
+  }
+}
+
 void pollAllSpaces() {
-  Serial.println("Polling all hackerspaces...");
-  for (int i = 0; i < HACKERSPACE_COUNT; i++) {
-    pollProgress = i + 1;
-    Serial.printf("  [%2d/%2d] %s\n", i + 1, HACKERSPACE_COUNT, hackerspaces[i].url);
+  Serial.println("Polling all hackerspaces in random order...");
+  int order[HACKERSPACE_COUNT];
+  buildRandomPollOrder(order, HACKERSPACE_COUNT);
+
+  for (int pos = 0; pos < HACKERSPACE_COUNT; pos++) {
+    int i = order[pos];
+    pollProgress = pos + 1;
+    Serial.printf("  [%2d/%2d] #%d %s\n", pos + 1, HACKERSPACE_COUNT, hackerspaces[i].ledNumber, hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = true;
     setSpaceColor(hackerspaces[i].ledNumber, 255, 80, 0);
     uint8_t state = fetchSpaceState(hackerspaces[i].url);
