@@ -898,6 +898,32 @@ void animTaskFunc(void *) {
   }
 }
 
+void showOtaProgress(unsigned int progress, unsigned int total) {
+  if (total == 0) return;
+
+  int filled = (int)(((uint64_t)progress * MAP_LED_COUNT) / total);
+  if (filled < 0) filled = 0;
+  if (filled > MAP_LED_COUNT) filled = MAP_LED_COUNT;
+
+  clearAll();
+  for (int i = 0; i < MAP_LED_COUNT; i++) {
+    if (i < filled) {
+      setPixel(i, 0, 28, 0);      // completed
+    } else if (i == filled && progress < total) {
+      setPixel(i, 28, 12, 0);     // current chunk uploading
+    } else {
+      setPixel(i, 0, 0, 6);       // remaining
+    }
+  }
+
+  if (BACKLIGHT_COUNT > 0) {
+    uint8_t glow = (uint8_t)(4 + (((uint64_t)progress * 20U) / total));
+    fillRange(MAP_LED_COUNT, BACKLIGHT_COUNT, glow, glow / 2, 0);
+  }
+
+  showLeds();
+}
+
 void setupOta() {
   ArduinoOTA.setHostname(OTA_HOSTNAME);
   ArduinoOTA.setPassword(OTA_PASS);
@@ -905,8 +931,7 @@ void setupOta() {
     Serial.println("OTA update starting");
     if (animTaskHandle) vTaskSuspend(animTaskHandle);
     if (pollTaskHandle)  vTaskSuspend(pollTaskHandle);
-    fillAll(0, 0, 24);
-    showLeds();
+    showOtaProgress(0, 100);
   });
   ArduinoOTA.onEnd([]() {
     Serial.println("\nOTA update finished");
@@ -916,6 +941,7 @@ void setupOta() {
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     esp_task_wdt_reset();
+    showOtaProgress(progress, total);
     Serial.printf("OTA progress: %u%%\r", (progress * 100U) / total);
   });
   ArduinoOTA.onError([](ota_error_t error) {
