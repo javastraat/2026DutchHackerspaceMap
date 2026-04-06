@@ -40,6 +40,7 @@ void publishHADiscovery();
 #include "esp_task_wdt.h"
 #include "esp_idf_version.h"
 #include "config.h"
+#include "hackerspaces.h"
 #include "web/webserver.h"
 
 #include <PubSubClient.h>
@@ -433,12 +434,6 @@ void fillRange(int first, int count, uint8_t red, uint8_t green, uint8_t blue) {
 void fillAll(uint8_t red, uint8_t green, uint8_t blue) {
   fillRange(0, LED_COUNT, red, green, blue);
 }
-
-typedef struct {
-  int ledNumber;
-  const char *name;
-  const char *url;
-} HackerspaceEntry;
 
 const HackerspaceEntry hackerspaces[] = {
   {  1, "Maakplek",            "https://maakplek.nl/api/" },

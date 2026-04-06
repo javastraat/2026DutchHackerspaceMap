@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <time.h>
 #include "../config.h"
+#include "../hackerspaces.h"
 
 extern uint8_t spaceStates[];
 extern uint32_t lastPollFinished;
@@ -10,15 +11,6 @@ extern int activeWifiSlot;
 extern volatile int pollProgress;
 extern time_t lastSeenOpen[];
 extern bool spacePolling[];
-
-struct SpaceInfo { int led; const char *name; };
-static const SpaceInfo spaceInfo[] = {
-  {1,"Maakplek"},{2,"HS Drenthe"},{3,"TkkrLab"},{4,"Hack42"},
-  {5,"HS Nijmegen"},{6,"TD Venlo"},{7,"ACKspace"},{8,"Hackalot"},
-  {9,"Pi4Dec"},{10,"Pixelbar"},{11,"RevSpace"},{12,"Space Leiden"},
-  {13,"TechInc"},{14,"AwesomeSpace"},{15,"RandomData"},{16,"HermitHive"},
-  {17,"NURDspace"},{18,"Bitlair"}
-};
 
 extern volatile bool forcePoll;
 extern volatile bool forceRandomPoll;
@@ -605,13 +597,13 @@ void handleApiHw() {
 void handleApiSpaces() {
   String json = "{\"spaces\":[";
   time_t now = time(nullptr);
-  for (int i = 0; i < 18; i++) {
+  for (int i = 0; i < HACKERSPACE_COUNT; i++) {
     const char *state = spaceStates[i] == 1 ? "open"
                       : spaceStates[i] == 0 ? "closed"
                       : "unknown";
     if (i > 0) json += ',';
-    json += "{\"led\":";  json += spaceInfo[i].led;
-    json += ",\"name\":\""; json += spaceInfo[i].name;
+    json += "{\"led\":";  json += hackerspaces[i].ledNumber;
+    json += ",\"name\":\""; json += hackerspaces[i].name;
     json += "\",\"state\":\""; json += state;
     json += "\",\"fetching\":"; json += spacePolling[i] ? "true" : "false";
     json += ",\"last_open\":";
