@@ -670,9 +670,11 @@ void pollAllSpaces() {
 static TaskHandle_t pollTaskHandle = nullptr;
 
 void pollTaskFunc(void *) {
+  bool firstPoll = true;
   for (;;) {
     if (wifiIsStation && WiFi.status() == WL_CONNECTED) {
-      if (forcePoll || (millis() - lastPollTime) >= pollIntervalMs) {
+      if (firstPoll || forcePoll || (millis() - lastPollTime) >= pollIntervalMs) {
+        firstPoll = false;
         forcePoll = false;
         lastPollTime = millis();
         pollAllSpaces();
