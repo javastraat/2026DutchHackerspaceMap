@@ -620,8 +620,12 @@ void handleApiSpaces() {
       else if (ago < 3600)  snprintf(buf, sizeof(buf), "%um ago", ago / 60);
       else if (ago < 86400) {
         struct tm *t = localtime(&lo);
-        char tb[6]; strftime(tb, sizeof(tb), "%H:%M", t);
-        snprintf(buf, sizeof(buf), "at %s", tb);
+        if (t) {
+          char tb[6]; strftime(tb, sizeof(tb), "%H:%M", t);
+          snprintf(buf, sizeof(buf), "at %s", tb);
+        } else {
+          snprintf(buf, sizeof(buf), "today");
+        }
       } else                snprintf(buf, sizeof(buf), "%ud ago", ago / 86400);
       s["last_open"] = buf;
     } else {
@@ -637,9 +641,11 @@ void handleApiSpaces() {
     uint32_t ago_s = (millis() - lastPollFinished) / 1000;
     time_t poll_ts = now - (time_t)ago_s;
     struct tm *tm_info = localtime(&poll_ts);
-    char tbuf[10];
-    strftime(tbuf, sizeof(tbuf), "%H:%M:%S", tm_info);
-    doc["last_poll_str"] = tbuf;
+    if (tm_info) {
+      char tbuf[10];
+      strftime(tbuf, sizeof(tbuf), "%H:%M:%S", tm_info);
+      doc["last_poll_str"] = tbuf;
+    }
   }
   doc["ntp_synced"] = ntpSynced;
 

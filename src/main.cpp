@@ -149,8 +149,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     saveDisplaySettings();
   } else if (strcmp(topic, cmdAnim) == 0) {
     uint8_t m = 0;
-    if      (strcmp(msg, "Breathe")  == 0) m = 1;
-    else if (strcmp(msg, "Original") == 0) m = 2;
+    if      (strcmp(msg, "Sparkle")  == 0) m = ANIM_MODE_SPARKLE;
+    else if (strcmp(msg, "Breathe")  == 0) m = ANIM_MODE_BREATHE;
+    else if (strcmp(msg, "Original") == 0) m = ANIM_MODE_ORIGINAL;
+    else return;
     animMode = m;
     saveDisplaySettings();
   } else if (strcmp(topic, cmdPoll) == 0) {
