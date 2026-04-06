@@ -761,6 +761,7 @@ void buildRandomPollOrder(int *order, int count) {
 }
 
 void pollAllSpacesWithOrder(const int *order, int count, const char *label) {
+  if (time(nullptr) < 1000000000L) Serial.println("WARNING: NTP not synced, last_open timestamps will be invalid");
   Serial.printf("Polling all hackerspaces in %s order... (cycle %u)\n", label, pollCycleCount);
   for (int pos = 0; pos < count; pos++) {
     int i = order[pos];

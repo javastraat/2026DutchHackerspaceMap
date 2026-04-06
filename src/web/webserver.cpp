@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <time.h>
+#include <ArduinoJson.h>
 #include "../config.h"
 #include "../hackerspaces.h"
 
@@ -595,51 +596,53 @@ void handleApiHw() {
 }
 
 void handleApiSpaces() {
-  String json = "{\"spaces\":[";
   time_t now = time(nullptr);
+  bool ntpSynced = now > 1000000000UL;
+
+  JsonDocument doc;
+  JsonArray spaces = doc["spaces"].to<JsonArray>();
   for (int i = 0; i < HACKERSPACE_COUNT; i++) {
-    const char *state = spaceStates[i] == 1 ? "open"
-                      : spaceStates[i] == 0 ? "closed"
-                      : "unknown";
-    if (i > 0) json += ',';
-    json += "{\"led\":";  json += hackerspaces[i].ledNumber;
-    json += ",\"name\":\""; json += hackerspaces[i].name;
-    json += "\",\"state\":\""; json += state;
-    json += "\",\"fetching\":"; json += spacePolling[i] ? "true" : "false";
-    json += ",\"last_open\":";
+    JsonObject s = spaces.add<JsonObject>();
+    s["led"]      = hackerspaces[i].ledNumber;
+    s["name"]     = hackerspaces[i].name;
+    s["state"]    = spaceStates[i] == 1 ? "open"
+                  : spaceStates[i] == 0 ? "closed"
+                  : "unknown";
+    s["fetching"] = (bool)spacePolling[i];
     time_t lo = lastSeenOpen[i];
-    if (lo > 0 && now > 1000000000UL) {
+    if (lo > 0 && ntpSynced) {
       char buf[24];
       uint32_t ago = (uint32_t)(now - lo);
-      if      (ago < 60)    snprintf(buf, sizeof(buf), "\"just now\"");
-      else if (ago < 3600)  snprintf(buf, sizeof(buf), "\"%um ago\"", ago / 60);
+      if      (ago < 60)    snprintf(buf, sizeof(buf), "just now");
+      else if (ago < 3600)  snprintf(buf, sizeof(buf), "%um ago", ago / 60);
       else if (ago < 86400) {
         struct tm *t = localtime(&lo);
         char tb[6]; strftime(tb, sizeof(tb), "%H:%M", t);
-        snprintf(buf, sizeof(buf), "\"at %s\"", tb);
-      } else                snprintf(buf, sizeof(buf), "\"%ud ago\"", ago / 86400);
-      json += buf;
+        snprintf(buf, sizeof(buf), "at %s", tb);
+      } else                snprintf(buf, sizeof(buf), "%ud ago", ago / 86400);
+      s["last_open"] = buf;
     } else {
-      json += "null";
+      s["last_open"] = nullptr;
     }
-    json += "}";
   }
-  json += "],\"poll_progress\":";
-  json += pollProgress >= 0 ? String(pollProgress) : "null";
-  json += ",\"polled_ago_s\":";
-  json += lastPollFinished > 0 ? String((millis() - lastPollFinished) / 1000) : "null";
-  if (lastPollFinished > 0 && now > 1000000000UL) {
+
+  if (pollProgress >= 0)   doc["poll_progress"] = pollProgress;
+  else                     doc["poll_progress"] = nullptr;
+  if (lastPollFinished > 0) doc["polled_ago_s"] = (millis() - lastPollFinished) / 1000;
+  else                      doc["polled_ago_s"]  = nullptr;
+  if (lastPollFinished > 0 && ntpSynced) {
     uint32_t ago_s = (millis() - lastPollFinished) / 1000;
     time_t poll_ts = now - (time_t)ago_s;
     struct tm *tm_info = localtime(&poll_ts);
     char tbuf[10];
     strftime(tbuf, sizeof(tbuf), "%H:%M:%S", tm_info);
-    json += ",\"last_poll_str\":\"";
-    json += tbuf;
-    json += "\"";
+    doc["last_poll_str"] = tbuf;
   }
-  json += "}";
-  sendJson(json);
+  doc["ntp_synced"] = ntpSynced;
+
+  String out;
+  serializeJson(doc, out);
+  sendJson(out);
 }
 
 void handleApiGetWifiSlot() {
