@@ -48,8 +48,8 @@ void publishHADiscovery();
 // Ensure global variables are visible to all functions
 extern uint8_t spaceStates[];
 extern uint32_t pollIntervalMs;
-extern uint8_t ledBrightness;
-extern uint8_t animMode;
+extern volatile uint8_t ledBrightness;
+extern volatile uint8_t animMode;
 
 // MQTT config variables
 char mqttBroker[64] = MQTT_BROKER_DEFAULT;
@@ -120,7 +120,7 @@ void startLedTest();
 extern uint32_t lastMqttPublish;
 extern volatile bool forcePoll;
 extern volatile bool forceRandomPoll;
-extern uint8_t otaFillMode;
+extern volatile uint8_t otaFillMode;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (length == 0 || length > 63) return;
@@ -393,8 +393,8 @@ uint32_t encodeByte(uint8_t value) {
   return result;
 }
 
-uint8_t ledBrightness = 8; // 0-10
-uint8_t otaFillMode = OTA_FILL_MODE_DEFAULT;
+volatile uint8_t ledBrightness = 8; // 0-10
+volatile uint8_t otaFillMode = OTA_FILL_MODE_DEFAULT;
 
 void setPixel(int index, uint8_t red, uint8_t green, uint8_t blue) {
   if (index < 0 || index >= LED_COUNT) return;
@@ -500,7 +500,7 @@ uint8_t spaceFailCount[HACKERSPACE_COUNT] = {0};
 static uint32_t pollCycleCount = 0;
 static const uint8_t FAIL_SKIP_THRESHOLD = 3;
 static const uint8_t FAIL_RETRY_EVERY   = 5;
-uint8_t animMode = ANIM_MODE_DEFAULT;
+volatile uint8_t animMode = ANIM_MODE_DEFAULT;
 TaskHandle_t animTaskHandle = nullptr;
 
 typedef struct { uint8_t state; uint8_t phase; uint8_t speed; uint8_t count; } SpaceAnimInfo;
@@ -787,6 +787,7 @@ void pollAllSpacesWithOrder(const int *order, int count, const char *label) {
     setSpaceColor(hackerspaces[i].ledNumber, 40, 16, 0);
     uint8_t state = fetchSpaceState(hackerspaces[i].url);
     spacePolling[hackerspaces[i].ledNumber - 1] = false;
+    esp_task_wdt_reset();
 
     if (state == SPACE_UNKNOWN) {
       if (spaceFailCount[i] < 255) spaceFailCount[i]++;
@@ -1041,7 +1042,6 @@ void saveDisplaySettings() {
   prefs.putULong("pollMs",      pollIntervalMs);
   prefs.end();
   Serial.printf("Display settings saved: anim=%d bright=%d otaFill=%d poll=%ums\n", animMode, ledBrightness, otaFillMode, pollIntervalMs);
-  saveMqttSettings();
   publishMqttStatus();
   lastMqttPublish = millis();
 }

@@ -14,9 +14,9 @@ extern bool spacePolling[];
 
 extern volatile bool forcePoll;
 extern volatile bool forceRandomPoll;
-extern uint8_t animMode;
-extern uint8_t ledBrightness;
-extern uint8_t otaFillMode;
+extern volatile uint8_t animMode;
+extern volatile uint8_t ledBrightness;
+extern volatile uint8_t otaFillMode;
 extern uint32_t pollIntervalMs;
 void saveDisplaySettings();
 void startLedTest();
