@@ -774,6 +774,7 @@ void setupOta() {
     // tasks resume automatically on reboot after OTA
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    esp_task_wdt_reset();
     Serial.printf("OTA progress: %u%%\r", (progress * 100U) / total);
   });
   ArduinoOTA.onError([](ota_error_t error) {
