@@ -24,6 +24,7 @@ extern volatile bool forcePoll;
 extern volatile bool forceRandomPoll;
 extern uint8_t animMode;
 extern uint8_t ledBrightness;
+extern uint8_t otaFillMode;
 extern uint32_t pollIntervalMs;
 void saveDisplaySettings();
 void startLedTest();
@@ -287,6 +288,9 @@ select,input[type=text],input[type=password]{width:100%;padding:6px 8px;margin-t
       <label class="anim-option"><input type="radio" name="anim" value="2"> Original</label>
       <label class="anim-option"><input type="radio" name="anim" value="0"> Sparkle</label>
       <label class="anim-option"><input type="radio" name="anim" value="1"> Breathe</label>
+      <div class="section-label">OTA fill</div>
+      <label class="anim-option"><input type="radio" name="ota-fill" value="0"> Sequential</label>
+      <label class="anim-option"><input type="radio" name="ota-fill" value="1"> South→North</label>
       <div class="section-label">Test</div>
       <button class="btn-primary" id="led-test-btn" onclick="ledTest()">Test LEDs</button>
     </div>
@@ -367,6 +371,18 @@ document.querySelectorAll('input[name=anim]').forEach(r=>{
   });
 });
 pollAnim();
+
+function pollOtaFill() {
+  fetch('/api/ota-fill').then(r=>r.json()).then(d=>{
+    document.querySelectorAll('input[name=ota-fill]').forEach(r=>r.checked=(parseInt(r.value)===d.mode));
+  }).catch(()=>{});
+}
+document.querySelectorAll('input[name=ota-fill]').forEach(r=>{
+  r.addEventListener('change', ()=>{
+    fetch('/api/ota-fill?mode='+r.value, {method:'POST'}).catch(()=>{});
+  });
+});
+pollOtaFill();
 
 function pollBrightness() {
   fetch('/api/brightness').then(r=>r.json()).then(d=>{
@@ -695,6 +711,20 @@ void handleApiLedTest() {
   webServer.send(200, "text/plain", "ok");
 }
 
+void handleApiOtaFill() {
+  if (webServer.method() == HTTP_POST && webServer.hasArg("mode")) {
+    int m = webServer.arg("mode").toInt();
+    if (m >= OTA_FILL_MODE_SEQUENTIAL && m <= OTA_FILL_MODE_SOUTH_NORTH) {
+      otaFillMode = (uint8_t)m;
+      saveDisplaySettings();
+      Serial.printf("OTA fill mode -> %d\n", otaFillMode);
+    }
+  }
+  char buf[24];
+  snprintf(buf, sizeof(buf), "{\"mode\":%d}", otaFillMode);
+  sendJson(buf);
+}
+
 void handleApiBrightness() {
   if (webServer.method() == HTTP_POST && webServer.hasArg("v")) {
     int v = webServer.arg("v").toInt();
@@ -735,6 +765,7 @@ void setupWebServer() {
   webServer.on("/api/save-wifi-slot",HTTP_POST, handleApiSaveWifiSlot);
   webServer.on("/api/reboot",        HTTP_POST, handleApiReboot);
   webServer.on("/api/led-test",      HTTP_POST, handleApiLedTest);
+  webServer.on("/api/ota-fill",      HTTP_ANY,  handleApiOtaFill);
   webServer.on("/api/brightness",    HTTP_ANY,  handleApiBrightness);
   webServer.on("/api/poll-now",      HTTP_POST, handleApiPollNow);
   webServer.on("/api/poll",          HTTP_ANY,  handleApiPoll);

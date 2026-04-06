@@ -119,6 +119,7 @@ void startLedTest();
 extern uint32_t lastMqttPublish;
 extern volatile bool forcePoll;
 extern volatile bool forceRandomPoll;
+extern uint8_t otaFillMode;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (length == 0 || length > 63) return;
@@ -126,13 +127,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   memcpy(msg, payload, length);
   msg[length] = '\0';
 
-  char cmdBrightness[96], cmdAnim[96], cmdPoll[96], cmdLedTest[96], cmdPollNow[96], cmdPollRandom[96];
+  char cmdBrightness[96], cmdAnim[96], cmdPoll[96], cmdLedTest[96], cmdPollNow[96], cmdPollRandom[96], cmdOtaFill[96];
   snprintf(cmdBrightness, sizeof(cmdBrightness), "%s/set/brightness",    mqttTopic);
   snprintf(cmdAnim,       sizeof(cmdAnim),       "%s/set/anim_mode",     mqttTopic);
   snprintf(cmdPoll,       sizeof(cmdPoll),       "%s/set/poll_interval", mqttTopic);
   snprintf(cmdLedTest,    sizeof(cmdLedTest),    "%s/set/led_test",      mqttTopic);
   snprintf(cmdPollNow,    sizeof(cmdPollNow),    "%s/set/poll_now",      mqttTopic);
   snprintf(cmdPollRandom, sizeof(cmdPollRandom), "%s/set/poll_random",   mqttTopic);
+  snprintf(cmdOtaFill,    sizeof(cmdOtaFill),    "%s/set/ota_fill",      mqttTopic);
 
   if (strcmp(topic, cmdBrightness) == 0) {
     uint8_t v = ledBrightness;
@@ -170,6 +172,13 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     forcePoll = false;
     forceRandomPoll = true;
     return; // no state to publish
+  } else if (strcmp(topic, cmdOtaFill) == 0) {
+    uint8_t m = otaFillMode;
+    if      (strcmp(msg, "Sequential")   == 0) m = OTA_FILL_MODE_SEQUENTIAL;
+    else if (strcmp(msg, "South->North") == 0) m = OTA_FILL_MODE_SOUTH_NORTH;
+    else return;
+    otaFillMode = m;
+    saveDisplaySettings();
   } else {
     return; // unknown topic
   }
@@ -223,6 +232,7 @@ void publishMqttStatus() {
   doc["poll_interval"] = pollIntervalMs;
   doc["brightness"] = ledBrightness;
   doc["anim_mode"] = animMode;
+  doc["ota_fill_mode"] = otaFillMode;
   doc["hw_chip"] = "ESP32-C3";
   char buf[512];
   size_t n = serializeJson(doc, buf);
@@ -324,6 +334,15 @@ void publishHADiscovery() {
     mqttTopic, mqttTopic, availObj, deviceObj);
   mqttClient.publish(topic, payload, true);
 
+  // OTA fill style — select
+  snprintf(topic, sizeof(topic), "homeassistant/select/hsmap_ota_fill/config");
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"HSMap OTA Fill\",\"state_topic\":\"%s\",\"command_topic\":\"%s/set/ota_fill\","
+    "\"value_template\":\"{{ ['Sequential','South->North'][value_json.ota_fill_mode|int] }}\","
+    "\"options\":[\"Sequential\",\"South->North\"],\"unique_id\":\"hsmap_ota_fill\",%s,%s}",
+    mqttTopic, mqttTopic, availObj, deviceObj);
+  mqttClient.publish(topic, payload, true);
+
   // Poll now (sequential) — button
   snprintf(topic, sizeof(topic), "homeassistant/button/hsmap_poll_now/config");
   snprintf(payload, sizeof(payload),
@@ -370,6 +389,7 @@ uint32_t encodeByte(uint8_t value) {
 }
 
 uint8_t ledBrightness = 8; // 0-10
+uint8_t otaFillMode = OTA_FILL_MODE_DEFAULT;
 
 void setPixel(int index, uint8_t red, uint8_t green, uint8_t blue) {
   if (index < 0 || index >= LED_COUNT) return;
@@ -442,6 +462,12 @@ const HackerspaceEntry hackerspaces[] = {
 };
 
 const int HACKERSPACE_COUNT = sizeof(hackerspaces) / sizeof(hackerspaces[0]);
+
+// Approximate physical map sweep, south -> north, using the current hackerspace locations.
+const uint8_t otaFillSouthToNorthOrder[MAP_LED_COUNT] = {
+  6, 5, 7, 4, 16, 3, 9, 10, 14, 11, 17, 13, 8, 12, 0, 2, 1, 15
+};
+// 6 5 7 4 
 
 uint8_t spaceStates[MAP_LED_COUNT];
 uint32_t lastPollFinished = 0;
@@ -907,12 +933,16 @@ void showOtaProgress(unsigned int progress, unsigned int total) {
 
   clearAll();
   for (int i = 0; i < MAP_LED_COUNT; i++) {
+    int ledIndex = (otaFillMode == OTA_FILL_MODE_SOUTH_NORTH)
+      ? otaFillSouthToNorthOrder[i]
+      : i;
+
     if (i < filled) {
-      setPixel(i, 0, 28, 0);      // completed
+      setPixel(ledIndex, 0, 28, 0);      // completed
     } else if (i == filled && progress < total) {
-      setPixel(i, 28, 12, 0);     // current chunk uploading
+      setPixel(ledIndex, 28, 12, 0);     // current chunk uploading
     } else {
-      setPixel(i, 0, 0, 6);       // remaining
+      setPixel(ledIndex, 0, 0, 6);       // remaining
     }
   }
 
@@ -972,22 +1002,24 @@ void loadSettings() {
     if (prefs.isKey(("ws" + si).c_str())) wifiSsid[i]  = prefs.getString(("ws" + si).c_str());
     if (prefs.isKey(("wp" + si).c_str())) wifiPass[i]  = prefs.getString(("wp" + si).c_str());
   }
-  animMode        = prefs.getUChar("animMode",    animMode);
-  ledBrightness   = prefs.getUChar("brightness",  ledBrightness);
+  animMode        = prefs.getUChar("animMode",     animMode);
+  ledBrightness   = prefs.getUChar("brightness",   ledBrightness);
+  otaFillMode     = prefs.getUChar("otaFillMode",  otaFillMode);
   pollIntervalMs  = prefs.getULong("pollMs",       pollIntervalMs);
   prefs.end();
-  Serial.printf("Settings loaded: anim=%d bright=%d poll=%ums\n", animMode, ledBrightness, pollIntervalMs);
+  Serial.printf("Settings loaded: anim=%d bright=%d otaFill=%d poll=%ums\n", animMode, ledBrightness, otaFillMode, pollIntervalMs);
   loadMqttSettings();
 }
 
 void saveDisplaySettings() {
   prefs.begin("hsmap", false);
   prefs.putBool("initialized", true);
-  prefs.putUChar("animMode",   animMode);
-  prefs.putUChar("brightness", ledBrightness);
-  prefs.putULong("pollMs",     pollIntervalMs);
+  prefs.putUChar("animMode",    animMode);
+  prefs.putUChar("brightness",  ledBrightness);
+  prefs.putUChar("otaFillMode", otaFillMode);
+  prefs.putULong("pollMs",      pollIntervalMs);
   prefs.end();
-  Serial.printf("Display settings saved: anim=%d bright=%d poll=%ums\n", animMode, ledBrightness, pollIntervalMs);
+  Serial.printf("Display settings saved: anim=%d bright=%d otaFill=%d poll=%ums\n", animMode, ledBrightness, otaFillMode, pollIntervalMs);
   saveMqttSettings();
   publishMqttStatus();
   lastMqttPublish = millis();
