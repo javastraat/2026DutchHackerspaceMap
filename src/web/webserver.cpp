@@ -18,7 +18,7 @@ extern volatile bool forceRandomPoll;
 extern volatile uint8_t animMode;
 extern volatile uint8_t ledBrightness;
 extern volatile uint8_t otaFillMode;
-extern uint32_t pollIntervalMs;
+extern volatile uint32_t pollIntervalMs;
 void saveDisplaySettings();
 void startLedTest();
 extern String wifiLabel[];

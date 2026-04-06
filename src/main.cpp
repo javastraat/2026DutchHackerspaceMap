@@ -47,7 +47,7 @@ void publishHADiscovery();
 
 // Ensure global variables are visible to all functions
 extern uint8_t spaceStates[];
-extern uint32_t pollIntervalMs;
+extern volatile uint32_t pollIntervalMs;
 extern volatile uint8_t ledBrightness;
 extern volatile uint8_t animMode;
 
@@ -197,6 +197,7 @@ void mqttReconnect() {
   if (now - lastMqttReconnectAttempt < MQTT_RECONNECT_INTERVAL_MS) return;
   lastMqttReconnectAttempt = now;
 
+  if (strlen(mqttBroker) == 0) { Serial.println("[MQTT] Broker not set, skipping connect"); return; }
   Serial.println("[MQTT] Connecting...");
   const char *user = strlen(mqttUser) > 0 ? mqttUser : nullptr;
   const char *pass = strlen(mqttPass) > 0 ? mqttPass : nullptr;
@@ -479,7 +480,7 @@ uint32_t lastPollTime = 0;
 volatile bool forcePoll = false;
 volatile bool forceRandomPoll = false;
 volatile int pollProgress = -1;  // -1 = idle, 1-18 = current position in the active poll run
-uint32_t pollIntervalMs = POLL_INTERVAL_MS;
+volatile uint32_t pollIntervalMs = POLL_INTERVAL_MS;
 
 time_t lastSeenOpen[MAP_LED_COUNT] = {0};  // unix timestamp, 0 = never seen open
 
