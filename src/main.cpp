@@ -252,6 +252,16 @@ typedef struct {
   uint32_t B;
 } SpiLedPixel;
 
+// Generate a lowercase_underscored slug from a display name
+static void makeSlug(const char *name, char *slug, size_t sz) {
+  size_t j = 0;
+  for (size_t i = 0; name[i] && j < sz - 1; i++) {
+    char c = name[i];
+    slug[j++] = (c == ' ') ? '_' : (char)tolower((unsigned char)c);
+  }
+  slug[j] = '\0';
+}
+
 // Home Assistant MQTT Discovery publisher
 void publishHADiscovery() {
   if (!mqttClient.connected() || !mqttHAEnable) return;
@@ -281,34 +291,16 @@ void publishHADiscovery() {
     mqttTopic, macAddr.c_str(), macAddr.c_str());
 
   // Individual binary_sensor per hackerspace (open = ON, closed/unknown = OFF)
-  static const struct { const char *slug; const char *name; } spaces[18] = {
-    {"maakplek",     "Maakplek"},
-    {"hs_drenthe",   "HS Drenthe"},
-    {"tkkrlab",      "TkkrLab"},
-    {"hack42",       "Hack42"},
-    {"hs_nijmegen",  "HS Nijmegen"},
-    {"td_venlo",     "TD Venlo"},
-    {"ackspace",     "ACKspace"},
-    {"hackalot",     "Hackalot"},
-    {"pi4dec",       "Pi4Dec"},
-    {"pixelbar",     "Pixelbar"},
-    {"revspace",     "RevSpace"},
-    {"space_leiden", "Space Leiden"},
-    {"techinc",      "TechInc"},
-    {"awesomespace", "AwesomeSpace"},
-    {"randomdata",   "RandomData"},
-    {"hermithive",   "HermitHive"},
-    {"nurdspace",    "NURDspace"},
-    {"bitlair",      "Bitlair"},
-  };
-  for (int i = 0; i < 18; i++) {
-    snprintf(topic, sizeof(topic), "homeassistant/binary_sensor/hsmap_%s/config", spaces[i].slug);
+  char slug[32];
+  for (int i = 0; i < HACKERSPACE_COUNT; i++) {
+    makeSlug(hackerspaces[i].name, slug, sizeof(slug));
+    snprintf(topic, sizeof(topic), "homeassistant/binary_sensor/hsmap_%s/config", slug);
     snprintf(payload, sizeof(payload),
       "{\"name\":\"HSMap %s\",\"state_topic\":\"%s\","
-      "\"value_template\":\"{{ 'ON' if value_json.space_states[%d] == 1 else 'OFF' }}\","
+      "\"value_template\":\"{{ 'ON' if value_json.spaces['%s'] == 'open' else 'OFF' }}\","
       "\"payload_on\":\"ON\",\"payload_off\":\"OFF\","
       "\"device_class\":\"door\",\"unique_id\":\"hsmap_%s\",%s,%s}",
-      spaces[i].name, mqttTopic, i, spaces[i].slug, availObj, deviceObj);
+      hackerspaces[i].name, mqttTopic, hackerspaces[i].name, slug, availObj, deviceObj);
     mqttClient.publish(topic, payload, true);
   }
 
