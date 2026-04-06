@@ -115,7 +115,9 @@ void loadMqttSettings() {
 // Forward declarations needed by mqttCallback
 void saveDisplaySettings();
 void publishMqttStatus();
+void startLedTest();
 extern uint32_t lastMqttPublish;
+extern bool forcePoll;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (length == 0 || length > 63) return;
@@ -123,10 +125,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   memcpy(msg, payload, length);
   msg[length] = '\0';
 
-  char cmdBrightness[96], cmdAnim[96], cmdPoll[96];
+  char cmdBrightness[96], cmdAnim[96], cmdPoll[96], cmdLedTest[96], cmdPollNow[96];
   snprintf(cmdBrightness, sizeof(cmdBrightness), "%s/set/brightness",    mqttTopic);
   snprintf(cmdAnim,       sizeof(cmdAnim),       "%s/set/anim_mode",     mqttTopic);
   snprintf(cmdPoll,       sizeof(cmdPoll),        "%s/set/poll_interval", mqttTopic);
+  snprintf(cmdLedTest,    sizeof(cmdLedTest),    "%s/set/led_test",      mqttTopic);
+  snprintf(cmdPollNow,    sizeof(cmdPollNow),    "%s/set/poll_now",      mqttTopic);
 
   if (strcmp(topic, cmdBrightness) == 0) {
     uint8_t v = ledBrightness;
@@ -153,10 +157,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     else return;
     pollIntervalMs = ms;
     saveDisplaySettings();
+  } else if (strcmp(topic, cmdLedTest) == 0) {
+    startLedTest();
+    return; // no state to publish
+  } else if (strcmp(topic, cmdPollNow) == 0) {
+    forcePoll = true;
+    return; // no state to publish
   } else {
-    return; // unknown topic, no need to publish
+    return; // unknown topic
   }
-  // Immediately confirm the new state back to HA
+  // Confirm new state back to HA (saveDisplaySettings already does this,
+  // but callback publishes once more to ensure HA select updates immediately)
   publishMqttStatus();
   lastMqttPublish = millis();
 }
@@ -286,6 +297,22 @@ void publishHADiscovery() {
     "\"value_template\":\"{%% set m={60000:'1 min',120000:'2 min',300000:'5 min',600000:'10 min'} %%}{{ m[value_json.poll_interval|int]|default('2 min') }}\","
     "\"options\":[\"1 min\",\"2 min\",\"5 min\",\"10 min\"],\"unique_id\":\"hsmap_poll\",%s}",
     mqttTopic, mqttTopic, deviceObj);
+  mqttClient.publish(topic, payload, true);
+
+  // Poll now — button
+  snprintf(topic, sizeof(topic), "homeassistant/button/hsmap_poll_now/config");
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"HSMap Poll Now\",\"command_topic\":\"%s/set/poll_now\","
+    "\"payload_press\":\"1\",\"unique_id\":\"hsmap_poll_now\",%s}",
+    mqttTopic, deviceObj);
+  mqttClient.publish(topic, payload, true);
+
+  // LED test — button
+  snprintf(topic, sizeof(topic), "homeassistant/button/hsmap_led_test/config");
+  snprintf(payload, sizeof(payload),
+    "{\"name\":\"HSMap LED Test\",\"command_topic\":\"%s/set/led_test\","
+    "\"payload_press\":\"1\",\"unique_id\":\"hsmap_led_test\",%s}",
+    mqttTopic, deviceObj);
   mqttClient.publish(topic, payload, true);
 }
 
@@ -861,6 +888,8 @@ void saveDisplaySettings() {
   prefs.end();
   Serial.printf("Display settings saved: anim=%d bright=%d poll=%ums\n", animMode, ledBrightness, pollIntervalMs);
   saveMqttSettings();
+  publishMqttStatus();
+  lastMqttPublish = millis();
 }
 
 void saveWifiSlot(int slot) {
