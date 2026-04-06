@@ -1,6 +1,8 @@
 BSD 3-Clause License
 
-Copyright (c) 2026, Theo Borm
+Hardware : Copyright (c) 2026, Theo Borm
+This software : Copyright (c) 2026, Einstein
+
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
