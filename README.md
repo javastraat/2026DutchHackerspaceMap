@@ -1,6 +1,7 @@
 # 2026 Dutch Hackerspace Map — Software
 
 Hardware and initial Software Copyright (c) 2026, Theo Borm — licensed under the [BSD 3-Clause License](../LICENSE).
+
 Our Extended Software GNU GENERAL PUBLIC LICENSE Copyright (C) 2026 PD2EMC
 
 This is a modified firmware for the [2026 Dutch Hackerspace Map](https://github.com/hackwinkel/2026DutchHackerspaceMap) by Einstein — an ESP32-C3 based PCB that polls the [SpaceAPI](https://spaceapi.io/) of 18 Dutch hackerspaces and drives WS2812-compatible RGB LEDs to show their open/closed state. It also exposes a web interface for configuration and integrates with Home Assistant via MQTT.
