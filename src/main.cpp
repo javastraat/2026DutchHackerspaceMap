@@ -1057,6 +1057,8 @@ void saveWifiSlot(int slot) {
 bool tryConnectSlot(int slot) {
   if (wifiSsid[slot].isEmpty()) return false;
   Serial.printf("Trying slot %d (%s): %s\n", slot, wifiLabel[slot].c_str(), wifiSsid[slot].c_str());
+  WiFi.disconnect(false);
+  delay(100);
   WiFi.begin(wifiSsid[slot].c_str(), wifiPass[slot].c_str());
   uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED && (millis() - start) < WIFI_CONNECT_TIMEOUT_MS) {
